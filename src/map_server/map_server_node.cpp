@@ -325,11 +325,18 @@ nav_msgs::msg::OccupancyGrid MapServerNode::mapToOccupancyGrid(msg::Map map)
   occupancy_grid.info.origin.position.x = minX;
   occupancy_grid.info.origin.position.y = minY;
 
-  // cell size in meters - get from parameter
-  occupancy_grid.info.resolution = declare_parameter("grid.resolution", 0.1);
+  if (!this->has_parameter("grid.resolution")) {
+    occupancy_grid.info.resolution = declare_parameter("grid.resolution", 0.1);
+  } else {
+    occupancy_grid.info.resolution = get_parameter("grid.resolution").as_double();
+  }
 
-  // Limit the max size of the grid to avoid memory issues with large areas
-  const int MAX_GRID_SIZE = declare_parameter("grid.max_size", 2000);
+  int MAX_GRID_SIZE;
+  if (!this->has_parameter("grid.max_size")) {
+    MAX_GRID_SIZE = declare_parameter("grid.max_size", 2000);
+  } else {
+    MAX_GRID_SIZE = get_parameter("grid.max_size").as_int();
+  }
   int width = std::min(MAX_GRID_SIZE, static_cast<int>((maxX - minX) / occupancy_grid.info.resolution));
   int height = std::min(MAX_GRID_SIZE, static_cast<int>((maxY - minY) / occupancy_grid.info.resolution));
 
