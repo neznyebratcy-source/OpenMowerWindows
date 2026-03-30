@@ -11,20 +11,26 @@ class AckermannHILSBridge(Node):
         super().__init__('ackermann_hils_bridge')
         
         # 1. Настройки Serial
-        self.serial_port = '/dev/ttyUSB0'
+        possible_ports = ['/dev/ttyUSB0', '/dev/ttyUSB1', '/dev/ttyACM0', '/dev/ttyACM1']
         self.baud_rate = 115200
-        try:
-            self.arduino = serial.Serial(self.serial_port, self.baud_rate, timeout=0.1)
-            self.get_logger().info(f"HIL Подключен: {self.serial_port}")
-        except Exception as e:
-            self.get_logger().error(f"HIL Без Arduino. Ошибка: {e}")
-            self.arduino = None
+        self.arduino = None
+        
+        for port in possible_ports:
+            try:
+                self.arduino = serial.Serial(port, self.baud_rate, timeout=0.1)
+                self.get_logger().info(f"HIL Подключен: {port} 🎉")
+                break
+            except Exception:
+                pass
+                
+        if not self.arduino:
+            self.get_logger().error("HIL Без Arduino. Не найден ни один из портов (ttyUSB0, ttyACM0 и т.д.)! ❌")
 
         self.wheelbase_L = 0.50  
         
-        # ROS 2 Sub - Слушаем команды скорости от Nav2 (или джойстика)
-        self.subscription = self.create_subscription(Twist, '/cmd_vel', self.cmd_vel_callback, 10)
-        self.get_logger().info("HILS Bridge Started: Eavesdropping on /cmd_vel")
+        # ROS 2 Sub - Слушаем команды скорости от пульта джойстика
+        self.subscription = self.create_subscription(Twist, '/cmd_vel_foxglove', self.cmd_vel_callback, 10)
+        self.get_logger().info("HILS Bridge Started: Eavesdropping on /cmd_vel_foxglove")
 
     def cmd_vel_callback(self, msg):
         cmd_v = msg.linear.x
