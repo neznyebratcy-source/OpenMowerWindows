@@ -26,6 +26,7 @@ services:
       - install:/home/ws/install # keep container pre-build
       - log:/home/ws/log # keep container pre-build
       - ./foxglove_teleop_relay.py:/opt/ws/foxglove_teleop_relay.py
+      - ./ackermann_hils_bridge.py:/opt/ws/ackermann_hils_bridge.py
     environment:
       - DISPLAY=:0
       - ROS_LOCALHOST_ONLY=1
