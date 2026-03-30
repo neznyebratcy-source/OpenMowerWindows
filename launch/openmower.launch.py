@@ -39,13 +39,13 @@ def generate_launch_description():
         )]), launch_arguments={'use_sim_time': 'false'}.items()
     )
 
-    twist_mux_params = os.path.join(share_directory, 'config', 'twist_mux.yaml')
-    twist_mux = Node(
-        package="twist_mux",
-        executable="twist_mux",
-        parameters=[twist_mux_params, {'use_sim_time': False}],
-        remappings=[('/cmd_vel_out', '/diff_drive_base_controller/cmd_vel')]
-    )
+    # twist_mux_params = os.path.join(share_directory, 'config', 'twist_mux.yaml')
+    # twist_mux = Node(
+    #     package="twist_mux",
+    #     executable="twist_mux",
+    #     parameters=[twist_mux_params, {'use_sim_time': False}],
+    #     remappings=[('/cmd_vel_out', '/diff_drive_base_controller/cmd_vel')]
+    # )
 
     controller_params_file = os.path.join(share_directory, 'config', 'controllers.yaml')
 
@@ -68,16 +68,16 @@ def generate_launch_description():
         output='screen'
     )
 
-    load_mower_controller = ExecuteProcess(
-        cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
-             'mower_controller'],
-        output='screen'
-    )
+    # load_mower_controller = ExecuteProcess(
+    #     cmd=['ros2', 'control', 'load_controller', '--set-state', 'active',
+    #          'mower_controller'],
+    #     output='screen'
+    # )
 
     # Launch them all!
     return LaunchDescription([
         node_robot_state_publisher,
-        twist_mux,
+        # twist_mux,
         controller_manager,
 
         RegisterEventHandler(
@@ -94,12 +94,12 @@ def generate_launch_description():
             )
         ),
 
-        RegisterEventHandler(
-            event_handler=OnProcessExit(
-                target_action=load_joint_state_controller,
-                on_exit=[load_mower_controller],
-            )
-        ),
+        # RegisterEventHandler(
+        #     event_handler=OnProcessExit(
+        #         target_action=load_joint_state_controller,
+        #         on_exit=[load_mower_controller],
+        #     )
+        # ),
 
         IncludeLaunchDescription(
             PythonLaunchDescriptionSource([share_directory, '/launch/gps.launch.py']),
@@ -126,8 +126,14 @@ def generate_launch_description():
                 [get_package_share_directory("foxglove_bridge"), '/launch/foxglove_bridge_launch.xml']),
         ),
 
-        IncludeLaunchDescription(
-            PythonLaunchDescriptionSource(
-                [share_directory, '/launch/micro_ros_agent.launch.py']),
+        # IncludeLaunchDescription(
+        #     PythonLaunchDescriptionSource(
+        #         [share_directory, '/launch/micro_ros_agent.launch.py']),
+        # ),
+        
+        # --- ЗАПУСК НАШЕГО КАСТОМНОГО РОБОТА НА СТОЛЕ (HILS) ---
+        ExecuteProcess(
+            cmd=['python3', '/opt/ws/ackermann_hils_bridge.py'],
+            output='screen'
         ),
     ])

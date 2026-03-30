@@ -1,0 +1,115 @@
+# OpenMowerNext: Windows Simulation & Setup Guide
+
+This guide is a comprehensive technical walkthrough for running the `OpenMowerNext` ROS 2 simulation stack on Windows via Docker Desktop and WSL2. It includes critical bug fixes, setup commands, and step-by-step instructions for using the Foxglove interface and Map Recorder.
+
+---
+
+## 🏗️ 1. Prerequisites & Environment
+
+1. **Docker Desktop**: Ensure Docker Desktop is installed and configured to use the **WSL 2 backend**.
+   * Open Docker Desktop `Settings` (the gear icon top right).
+   * Go to `General` and ensure **"Use the WSL 2 based engine"** is checked.
+   * Go to `Resources` -> `WSL integration` and ensure integration is enabled for your default WSL distro.
+   * Click Apply & Restart.
+2. **VS Code**: Install VS Code with the `Dev Containers` extension.
+3. **Foxglove Studio**: Download the desktop app or use the web version (https://studio.foxglove.dev) to interface with the robot.
+
+> [!WARNING]
+> **WSL2 Clock Desync Bug (Windows Specific)**
+> WSL2 frequently suffers from hardware clock drift when Windows goes to sleep. This causes the Docker `xserver` GUI container to crash on boot with `gettimeofday` looping errors.
+> **The Fix:** Before starting Docker containers, open PowerShell and run:
+> `wsl -d docker-desktop -u root hwclock -s`
+
+---
+
+## 🚀 2. Building and Launching the Simulator
+
+Due to Github Container Registry (`ghcr.io`) authentication requirements on the pre-compiled images, it is highly recommended to build the Devcontainer locally.
+
+1. Open a terminal in the root of the `OpenMowerNext` repository.
+2. We must pass required environment variables into the container or the navigation stack will crash:
+   ```bash
+   # (For PowerShell, set these in your session first)
+   $env:OM_MAP_PATH="/config/map.geojson"
+   $env:OM_DATUM_LAT="51.5"
+   $env:OM_DATUM_LONG="7.5"
+   ```
+3. **Build the image locally:**
+   ```bash
+   docker compose build workspace
+   ```
+4. **Boot the simulation:**
+   ```bash
+   docker compose up -d
+   ```
+
+> [!TIP]
+> **Viewing the 3D World:** Once the containers are up, open a browser and go to `http://localhost:12345`. This connects to the VNC X-Server container showing the Gazebo interface. Note: The grass patch model is huge and may take a minute or two to download on the first run.
+
+---
+
+## 🎮 3. Connecting Foxglove & Teleoperation
+
+Foxglove Studio is your primary "Brain" interface for the robot.
+
+1. Open Foxglove Studio.
+2. Click **Open Connection** and connect to the ROS 2 WebSocket Bridge: `ws://localhost:8765`.
+3. Add a **3D Panel** to visualize the `/tf` bounding boxes and map layers.
+4. Add a **Teleop Panel** (the joystick with arrows) so you can drive the robot manually.
+5. In the Teleop panel settings, ensure the **Topic** is set to publish to `/cmd_vel_foxglove` or the appropriate twist multiplexer topic.
+
+---
+
+## 🗺️ 4. Drawing and Saving a Lawn Map
+
+The primary goal of the simulator right now is mapping the boundaries of the lawn.
+
+1. Open **two separate terminal windows** and shell into the running Docker container in both:
+   ```bash
+   docker compose exec workspace bash
+   ```
+2. **In Terminal 1**, start the Action Server to begin recording a new boundary:
+   ```bash
+   ros2 action send_goal /record_area_boundary open_mower_next/action/RecordAreaBoundary "{name: 'backyard', type: 2, auto_recording: true, distance_threshold: 0.05}"
+   ```
+3. Go back to Foxglove Studio. Using the **Teleop joystick**, physically drive the virtual robot in Gazebo in a large loop (circle or square) to trace out the boundary. You will see a red polygon drawing behind it in the 3D view.
+4. Once you have closed the loop, go to **Terminal 2** and fire the trigger to save the map into GeoJSON:
+   ```bash
+   ros2 service call /finish_area_recording std_srvs/srv/Trigger "{}"
+   ```
+5. The `map_server` will process the file, output `success=True`, and you will immediately see thick green lines generate inside Foxglove — these are your computed Mowing/Operation safe areas!
+
+## 🤖 5. Autonomous Navigation (Autopilot)
+
+* **Coverage Path Planning ("Mowing"):** The high-level OpenMowerNext logic to continuously zig-zag and mow the grid is currently still under active open-source development and is not yet implemented in the codebase.
+* **Waypoint Navigation:** You CAN test the Nav2 `follow_path` autopilot to command the robot to drive to a specific spot while automatically avoiding boundaries.
+  1. In Foxglove Studio, look at the top menu bar of your **3D panel**.
+  2. Click the **Publish** icon (it looks like a pin target or an arrow, often called "Publish Point" or "Publish Pose").
+  3. A new settings bar will appear. Change the target topic from the default to `/goal_pose`.
+  4. Now, click anywhere on your 3D grid/grass map.
+  5. Drag your mouse to specify the direction you want the robot to face when it arrives, and release.
+  6. The `nav2` stack will instantly compute a green path to that point, and the robot will autonomously start driving there!
+
+---
+
+## 📅 6. Everyday Usage (After Initial Setup)
+
+Once you have successfully built the Docker images the first time, starting up your environment for daily development is incredibly fast.
+
+1. **Start Docker Desktop**: Open Docker Desktop and make sure the engine is running. (Remember the `hwclock -s` WSL trick if Windows was putting your computer to sleep).
+2. **Open your Terminal**: Navigate to the `OpenMowerNext` folder in PowerShell.
+3. **Set Environment Variables**: (Unless you permanently added them to your Windows System Variables):
+   ```bash
+   $env:OM_MAP_PATH="/config/map.geojson"
+   $env:OM_DATUM_LAT="51.5"
+   $env:OM_DATUM_LONG="7.5"
+   ```
+4. **Boot Up**:
+   ```bash
+   docker compose up -d
+   ```
+5. **Start Working**: Open **Foxglove Studio**, click Open Connection (`ws://localhost:8765`), and you are good to go!
+6. **Shut Down**: When you are finished, stop the background containers to save RAM:
+   ```bash
+   docker compose down
+   ```
