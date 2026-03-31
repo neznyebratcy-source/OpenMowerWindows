@@ -69,8 +69,8 @@ def main():
     ]
     lawn_polygon = Polygon(lawn_coords)
 
-    # Шаг между полосами (ширина кошения трактора, например 0.6 метра)
-    snake_path = generate_snake_path(lawn_polygon, spacing=0.6)
+    # Шаг между полосами (ширина кошения маленького трактора 0.4 метра)
+    snake_path = generate_snake_path(lawn_polygon, spacing=0.4)
 
     # ===== РИСУЕМ КРАСИВЫЙ ГРАФИК =====
     # Рисуем сам газон (зеленым)
