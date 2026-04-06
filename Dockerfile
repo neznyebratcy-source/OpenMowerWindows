@@ -49,6 +49,7 @@ ENV SHELL=/bin/bash
 
 # Install only runtime dependencies
 RUN apt-get update \
+    && apt-get install -y python3-paho-mqtt \
     && rosdep update \
     && source /opt/ros/${ROS_DISTRO}/setup.bash \
     && cd $WORKSPACE \

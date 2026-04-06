@@ -132,8 +132,15 @@ def generate_launch_description():
         # ),
         
         # --- ЗАПУСК НАШЕГО КАСТОМНОГО РОБОТА НА СТОЛЕ (HILS) ---
+        # USB МОСТ (ТВОЯ ЛОКАЛЬНАЯ МАЛИНКА)
+        # ExecuteProcess(
+        #     cmd=['python3', '/opt/ws/ackermann_hils_bridge.py'],
+        #     output='screen'
+        # ),
+        
+        # ОБЛАЧНЫЙ МОСТ (RAILWAY ДЛЯ ДРУГА)
         ExecuteProcess(
-            cmd=['python3', '/opt/ws/ackermann_hils_bridge.py'],
+            cmd=['python3', '/opt/ws/cloud_ackermann_mqtt.py'],
             output='screen'
         ),
     ])
