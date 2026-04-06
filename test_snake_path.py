@@ -3,9 +3,16 @@ from shapely.geometry import Polygon, LineString, MultiLineString
 
 def generate_snake_path(polygon, spacing=0.5):
     """
-    Генерирует маршрут "змейки" внутри заданного многоугольника.
+    Генерирует маршрут внутри заданного многоугольника.
+    Сначала делает "Чистовой проход" по периметру (Контур), 
+    а затем заполняет внутренность "змейкой" (Boustrophedon).
     """
     path_points = []
+    
+    # 0. ЧИСТОВОЙ ПРОХОД ПО ПЕРИМЕТРУ (Contour Pass)
+    # Берем координаты внешней границы газона и добавляем в начало пути
+    perimeter_coords = list(polygon.exterior.coords)
+    path_points.extend(perimeter_coords)
     
     # 1. Находим "Bounding Box" (ограничивающую рамку)
     minx, miny, maxx, maxy = polygon.bounds
