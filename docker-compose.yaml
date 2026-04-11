@@ -27,6 +27,8 @@ services:
       - log:/home/ws/log # keep container pre-build
       - ./foxglove_teleop_relay.py:/opt/ws/foxglove_teleop_relay.py
       - ./ackermann_hils_bridge.py:/opt/ws/ackermann_hils_bridge.py
+      - ./test_snake_path.py:/opt/ws/test_snake_path.py
+      - ./mower_action_client.py:/opt/ws/mower_action_client.py
       - ./launch/sim.launch.py:/opt/ws/install/open_mower_next/share/open_mower_next/launch/sim.launch.py
     environment:
       - DISPLAY=:0
