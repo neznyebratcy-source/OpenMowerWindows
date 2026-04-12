@@ -116,7 +116,9 @@ def generate_launch_description():
         }.items(),
     )
 
-    world_path = os.path.join(get_package_share_directory(package_name), 'worlds', 'empty.sdf')
+    # Change the .sdf depending on which world you are trying to set up
+    # Options: empty.sdf, open_field.sdf, garden.sdf
+    world_path = os.path.join(get_package_share_directory(package_name), 'worlds', 'open_field.sdf')
 
     return LaunchDescription([
         bridge,
@@ -128,7 +130,8 @@ def generate_launch_description():
                 [os.path.join(get_package_share_directory('ros_gz_sim'),
                               'launch', 'gz_sim.launch.py')]),
             launch_arguments={
-                'gz_args': '-r -s -v 6 {}'.format(world_path),
+                # Add/Remove -s argument to view/not view gazebo
+                'gz_args': '-r -v 6 {}'.format(world_path),
             }.items()),
         RegisterEventHandler(
             event_handler=OnProcessExit(
