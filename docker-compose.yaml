@@ -25,16 +25,18 @@ services:
       - build:/home/ws/build # keep container pre-build
       - install:/home/ws/install # keep container pre-build
       - log:/home/ws/log # keep container pre-build
-      - ./foxglove_teleop_relay.py:/opt/ws/foxglove_teleop_relay.py
-      - ./ackermann_hils_bridge.py:/opt/ws/ackermann_hils_bridge.py
+      - ./maps:/opt/ws/maps
+      - ./scripts/foxglove_teleop_relay.py:/opt/ws/foxglove_teleop_relay.py
+      - ./scripts/ackermann_hils_bridge.py:/opt/ws/ackermann_hils_bridge.py
       - ./launch/sim.launch.py:/opt/ws/install/open_mower_next/share/open_mower_next/launch/sim.launch.py
+      - ./worlds:/opt/ws/install/open_mower_next/share/open_mower_next/worlds
     environment:
       - DISPLAY=:0
       - ROS_LOCALHOST_ONLY=1
       - ROS_DOMAIN_ID=42
       - OM_DATUM_LAT=0.0
       - OM_DATUM_LONG=0.0
-      - OM_MAP_PATH=/opt/ws/map.geojson
+      - OM_MAP_PATH=/opt/ws/maps/map.geojson
     ports:
       - "8765:8765"
     command: bash -c "python3 -m pip install pyserial transforms3d --break-system-packages || true && source /opt/ros/jazzy/setup.bash && source install/setup.bash && (python3 /opt/ws/foxglove_teleop_relay.py &) && (python3 /opt/ws/ackermann_hils_bridge.py &) && ros2 launch open_mower_next sim.launch.py"

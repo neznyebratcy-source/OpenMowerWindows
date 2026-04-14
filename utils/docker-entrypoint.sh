@@ -14,7 +14,7 @@ if [ -z "${OM_DATUM_LONG}" ]; then
 fi
 
 if [ -z "${OM_MAP_PATH}" ]; then
-  export OM_MAP_PATH=${WORKSPACE}/map.json
+  export OM_MAP_PATH=${WORKSPACE}/maps/map.json
 
   echo "OM_MAP_PATH not set, using default value: ${OM_MAP_PATH}"
 fi
