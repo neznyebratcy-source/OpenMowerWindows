@@ -56,3 +56,10 @@ imu:
   chip:
     # x, y, z offset in m of gps antenna from center of chassis
     offset: [0.0, 0.0, 0.0] # m
+
+# LIDAR ADDITION: mount position of the lidar relative to base_link.
+# Placed near the front-center of the robot, elevated above the mower deck
+# so the scan plane clears the chassis. Adjust z if mounting height changes.
+lidar:
+  mount:
+    offset: [0.15, 0.0, 0.15] # m  (x=front, y=center, z=elevated)

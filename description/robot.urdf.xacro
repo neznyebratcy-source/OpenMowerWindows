@@ -11,6 +11,8 @@
     <xacro:include filename="gps.xacro" />
     <xacro:include filename="imu.xacro" />
     <xacro:include filename="camera.xacro" />
+    <!-- LIDAR ADDITION: include the lidar sensor definition -->
+    <xacro:include filename="lidar.xacro" />
 
     <xacro:if value="$(arg use_ros2_control)">
         <xacro:include filename="ros2_control.xacro" />

@@ -141,7 +141,11 @@
           "visible": false
         },
         "/scan": {
-          "visible": false
+          "visible": true,
+          "colorMode": "flat",
+          "flatColor": "#00ff00",
+          "pointSize": 4,
+          "decayTime": 0.5
         },
         "/amcl_pose": {
           "visible": false
