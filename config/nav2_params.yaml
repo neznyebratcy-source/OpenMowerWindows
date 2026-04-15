@@ -76,12 +76,40 @@ local_costmap:
       height: 3
       resolution: 0.05
       robot_radius: 0.5
+      # RADAR ADDITION: obstacle_layer reads /radar_scan and marks detected obstacles
+      # in the local costmap so Nav2 can avoid them in real time.
+      # inflation_layer pads those obstacles by robot_radius so the planner
+      # keeps a safe distance without needing a tighter footprint.
       plugins:
       - static_layer
+      - obstacle_layer
+      - inflation_layer
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
         map_topic: "/map_grid"
+      # RADAR ADDITION: obstacle layer config
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan
+          sensor_frame: radar_link
+          data_type: LaserScan
+          obstacle_max_range: 5.0   # only mark obstacles up to 5m away
+          obstacle_min_range: 0.0
+          raytrace_max_range: 8.0   # clear free space up to 8m
+          raytrace_min_range: 0.0
+          marking: True
+          clearing: True
+          inf_is_valid: False
+      # RADAR ADDITION: inflate obstacles so the path planner routes around
+      # them with at least robot_radius clearance
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55      # slightly larger than robot_radius (0.5m)
       always_send_full_costmap: True
 
 global_costmap:

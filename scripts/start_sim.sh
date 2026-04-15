@@ -1,10 +1,6 @@
 #!/bin/bash
 cd ~/OpenMowerWindows || exit
 
-export OM_MAP_PATH="/config/maps/map.geojson"
-export OM_DATUM_LAT="51.5074"
-export OM_DATUM_LONG="-0.1278"
-
 docker compose up -d
 
 echo "Waiting for containers to start..."

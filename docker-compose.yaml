@@ -30,13 +30,28 @@ services:
       - ./scripts/ackermann_hils_bridge.py:/opt/ws/ackermann_hils_bridge.py
       - ./launch/sim.launch.py:/opt/ws/install/open_mower_next/share/open_mower_next/launch/sim.launch.py
       - ./worlds:/opt/ws/install/open_mower_next/share/open_mower_next/worlds
+      # Mount description, config, and foxglove folders so changes to
+      # radar.xacro, robot.urdf.xacro, yardforce500.yaml, nav2_params.yaml,
+      # and the Foxglove layout are picked up without rebuilding the image.
+      - ./description:/opt/ws/install/open_mower_next/share/open_mower_next/description
+      - ./config:/opt/ws/install/open_mower_next/share/open_mower_next/config
+      - ./foxglove:/opt/ws/install/open_mower_next/share/open_mower_next/foxglove
     environment:
       - DISPLAY=:0
       - ROS_LOCALHOST_ONLY=1
       - ROS_DOMAIN_ID=42
-      - OM_DATUM_LAT=0.0
-      - OM_DATUM_LONG=0.0
+      # Datum must match the spherical_coordinates in open_field.sdf so the
+      # map frame origin sits at the Gazebo world origin instead of 4 million
+      # meters away at the equator/prime meridian.
+      - OM_DATUM_LAT=-22.9
+      - OM_DATUM_LONG=-43.2
       - OM_MAP_PATH=/opt/ws/maps/map.geojson
+      # Force Mesa software rendering so gz-sim sensor ray casting works
+      # inside Docker/WSL2 where there is no physical GPU available.
+      # Without these, the radar topic registers but produces no data because
+      # the OpenGL scene for ray casting silently fails to initialize.
+      - LIBGL_ALWAYS_SOFTWARE=1
+      - MESA_GL_VERSION_OVERRIDE=3.3
     ports:
       - "8765:8765"
     command: bash -c "python3 -m pip install pyserial transforms3d --break-system-packages || true && source /opt/ros/jazzy/setup.bash && source install/setup.bash && (python3 /opt/ws/foxglove_teleop_relay.py &) && (python3 /opt/ws/ackermann_hils_bridge.py &) && ros2 launch open_mower_next sim.launch.py"
