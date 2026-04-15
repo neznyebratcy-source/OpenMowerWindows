@@ -122,11 +122,32 @@ global_costmap:
       robot_radius: 0.5
       resolution: 0.05
       track_unknown_space: true
-      plugins: ["static_layer"]
+      # OBSTACLE AVOIDANCE: Added obstacle_layer and inflation_layer so the
+      # global planner routes AROUND trees from the start, not just last-second.
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
         map_topic: "/map_grid"
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan
+          sensor_frame: radar_link
+          data_type: LaserScan
+          obstacle_max_range: 5.0
+          obstacle_min_range: 0.0
+          raytrace_max_range: 8.0
+          raytrace_min_range: 0.0
+          marking: True
+          clearing: True
+          inf_is_valid: False
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55
       always_send_full_costmap: True
 
 
