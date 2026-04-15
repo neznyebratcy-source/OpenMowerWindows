@@ -60,8 +60,8 @@ def generate_launch_description():
             '/imu/data_raw@sensor_msgs/msg/Imu[gz.msgs.IMU',
             '/model/openmower/pose@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
             '/model/docking_station/pose@geometry_msgs/msg/Pose[gz.msgs.Pose',
-            # LIDAR ADDITION: bridge the lidar scan from Gazebo into ROS2.
-            # The Gazebo topic name must match the <topic> in lidar.xacro.
+            # RADAR ADDITION: bridge the radar scan from Gazebo into ROS2.
+            # The Gazebo topic name must match the <topic> in radar.xacro.
             '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
         ],
         output='screen'

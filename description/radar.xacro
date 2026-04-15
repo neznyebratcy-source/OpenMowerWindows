@@ -1,31 +1,31 @@
 <?xml version="1.0"?>
-<!-- LIDAR ADDITION: This file defines the lidar sensor link, joint, and Gazebo simulation plugin.
+<!-- RADAR ADDITION: This file defines the radar sensor link, joint, and Gazebo simulation plugin.
      It follows the same pattern as imu.xacro and gps.xacro.
-     Mount position is read from config/hardware/yardforce500.yaml under lidar.mount.offset -->
-<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="lidar">
+     Mount position is read from config/hardware/yardforce500.yaml under radar.mount.offset -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="radar">
 
-    <!-- Fixed joint attaching the lidar to the robot base.
+    <!-- Fixed joint attaching the radar to the robot base.
          Position is configured in yardforce500.yaml so it can be adjusted
          without touching this file. -->
-    <joint name="lidar_joint" type="fixed">
+    <joint name="radar_joint" type="fixed">
         <parent link="base_link"/>
-        <child link="lidar_link"/>
-        <origin xyz="${robot['lidar']['mount']['offset'][0]} ${robot['lidar']['mount']['offset'][1]} ${robot['lidar']['mount']['offset'][2]}" rpy="0 0 0"/>
+        <child link="radar_link"/>
+        <origin xyz="${robot['radar']['mount']['offset'][0]} ${robot['radar']['mount']['offset'][1]} ${robot['radar']['mount']['offset'][2]}" rpy="0 0 0"/>
     </joint>
 
-    <!-- Lidar link - no visual/collision geometry needed for a sensor-only link -->
-    <link name="lidar_link">
+    <!-- Radar link - no visual/collision geometry needed for a sensor-only link -->
+    <link name="radar_link">
     </link>
 
-    <!-- Gazebo simulation sensor plugin for the lidar.
+    <!-- Gazebo simulation sensor plugin for the radar.
          Publishes sensor_msgs/LaserScan to /scan at 10 Hz.
          360-degree horizontal sweep, 0.1m - 10m range.
          The ros_gz_bridge in sim.launch.py bridges this topic into ROS2. -->
-    <gazebo reference="lidar_link">
+    <gazebo reference="radar_link">
         <!-- gpu_lidar with ogre2 — works in Docker/WSL2 because docker-compose.yaml
              sets LIBGL_ALWAYS_SOFTWARE=1 to force Mesa software rendering -->
-        <sensor name="lidar" type="gpu_lidar">
-            <gz_frame_id>lidar_link</gz_frame_id>
+        <sensor name="radar" type="gpu_lidar">
+            <gz_frame_id>radar_link</gz_frame_id>
             <always_on>1</always_on>
             <update_rate>10</update_rate>
             <topic>scan</topic>

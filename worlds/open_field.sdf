@@ -16,7 +16,7 @@
         </plugin>
         <plugin filename="libgz-sim-imu-system.so" name="gz::sim::systems::Imu">
         </plugin>
-        <!-- LIDAR ADDITION: The Sensors system plugin is required for gpu_lidar
+        <!-- RADAR ADDITION: The Sensors system plugin is required for gpu_lidar
              to cast rays. ogre2 is used as the render engine — software rendering
              is enabled via LIBGL_ALWAYS_SOFTWARE=1 in docker-compose.yaml so
              this works inside Docker/WSL2 without a physical GPU. -->

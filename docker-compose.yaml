@@ -31,7 +31,7 @@ services:
       - ./launch/sim.launch.py:/opt/ws/install/open_mower_next/share/open_mower_next/launch/sim.launch.py
       - ./worlds:/opt/ws/install/open_mower_next/share/open_mower_next/worlds
       # Mount description, config, and foxglove folders so changes to
-      # lidar.xacro, robot.urdf.xacro, yardforce500.yaml, nav2_params.yaml,
+      # radar.xacro, robot.urdf.xacro, yardforce500.yaml, nav2_params.yaml,
       # and the Foxglove layout are picked up without rebuilding the image.
       - ./description:/opt/ws/install/open_mower_next/share/open_mower_next/description
       - ./config:/opt/ws/install/open_mower_next/share/open_mower_next/config
@@ -48,7 +48,7 @@ services:
       - OM_MAP_PATH=/opt/ws/maps/map.geojson
       # Force Mesa software rendering so gz-sim sensor ray casting works
       # inside Docker/WSL2 where there is no physical GPU available.
-      # Without these, the lidar topic registers but produces no data because
+      # Without these, the radar topic registers but produces no data because
       # the OpenGL scene for ray casting silently fails to initialize.
       - LIBGL_ALWAYS_SOFTWARE=1
       - MESA_GL_VERSION_OVERRIDE=3.3
