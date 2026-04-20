@@ -34,8 +34,8 @@
         "near": 0.5,
         "far": 5000
       },
-      "followMode": "follow-pose",
-      "followTf": "map",
+      "followMode": "follow-position",
+      "followTf": "base_link",
       "scene": {
         "transforms": {
           "labelSize": 0.05,
@@ -95,6 +95,12 @@
         },
         "frame:map": {
           "visible": true
+        },
+        "frame:odom": {
+          "visible": true
+        },
+        "frame:base_link": {
+          "visible": true
         }
       },
       "topics": {
@@ -140,6 +146,30 @@
         "/map": {
           "visible": false
         },
+        "/map_grid": {
+          "visible": true,
+          "colorMode": "costmap",
+          "alpha": 0.7
+        },
+        "/plan": {
+          "visible": true,
+          "type": "arrow",
+          "color": "#ff6600"
+        },
+        "/odometry/filtered/map": {
+          "visible": true,
+          "colorMode": "flat",
+          "flatColor": "#ffffff"
+        },
+        "/global_costmap/costmap": {
+          "visible": true,
+          "colorMode": "costmap",
+          "alpha": 0.4
+        },
+        "/goal_pose": {
+          "visible": true,
+          "axisScale": 2.0
+        },
         "/scan": {
           "visible": true,
           "colorMode": "flat",
@@ -182,9 +212,6 @@
         "/local_costmap/static_layer": {
           "visible": false
         },
-        "/global_costmap/costmap": {
-          "visible": false
-        },
         "/global_costmap/obstacle_layer": {
           "visible": false
         },
@@ -217,8 +244,8 @@
         }
       },
       "publish": {
-        "type": "pose",
-        "poseTopic": "/move_base_simple/goal",
+        "type": "point",
+        "poseTopic": "/goal_pose",
         "pointTopic": "/clicked_point",
         "poseEstimateTopic": "/initialpose",
         "poseEstimateXDeviation": 0.5,
@@ -246,7 +273,7 @@
       "maxNativeZoom": 18
     },
     "virtual-joystick.Virtual Joystick!1bz242v": {
-      "topic": "/cmd_vel",
+      "topic": "/cmd_vel_foxglove",
       "publishRate": 30,
       "maxLinearSpeed": 3,
       "maxAngularSpeed": 3
