@@ -1,0 +1,14 @@
+<class_libraries>
+    <library path="coverage_planner_plugin">
+        <class type="open_mower_next::coverage_planner::CoveragePlanner"
+               base_class_type="nav2_core::GlobalPlanner">
+            <description>
+                Boustrophedon (snake) coverage planner for lawn mowing.
+                Performs one or more perimeter passes followed by back-and-forth
+                strip coverage of the interior at a configurable spacing.
+                Straight segments that are blocked by an obstacle are re-routed
+                using A* search on the global costmap (fed by radar/lidar).
+            </description>
+        </class>
+    </library>
+</class_libraries>

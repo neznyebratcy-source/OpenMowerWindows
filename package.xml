@@ -30,6 +30,11 @@
   <depend>geographiclib</depend>
   <depend>opennav_docking</depend>
 
+  <!-- coverage_planner plugin dependencies -->
+  <depend>nav2_core</depend>
+  <depend>nav2_costmap_2d</depend>
+  <depend>nav2_util</depend>
+
   <build_depend>nlohmann_json_schema_validator_vendor</build_depend>
 
   <exec_depend>vesc_hw_interface</exec_depend>
@@ -79,5 +84,6 @@
   <export>
     <build_type>ament_cmake</build_type>
     <opennav_docking plugin="${prefix}/src/docking_helper/plugins.xml" />
+    <nav2_core plugin="${prefix}/src/coverage_planner/plugins.xml" />
   </export>
 </package>

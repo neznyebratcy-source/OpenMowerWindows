@@ -111,6 +111,19 @@ def generate_launch_description():
         }.items(),
     )
 
+    # Run as direct python3 calls until the package is rebuilt inside Docker
+    coverage_goal_bridge = ExecuteProcess(
+        cmd=['python3', '/opt/ws/coverage_goal_bridge.py'],
+        output='screen'
+    )
+
+    # Converts /cmd_vel_foxglove (Twist) → /cmd_vel_joy (TwistStamped) so
+    # Foxglove's joystick panel drives the robot without needing start_sim.sh.
+    foxglove_teleop_relay = ExecuteProcess(
+        cmd=['python3', '/opt/ws/foxglove_teleop_relay.py'],
+        output='screen'
+    )
+
     foxglove_bridge = IncludeLaunchDescription(
         XMLLaunchDescriptionSource(
             [get_package_share_directory("foxglove_bridge"), '/launch/foxglove_bridge_launch.xml']),
@@ -158,5 +171,7 @@ def generate_launch_description():
         sim_node,
         localization,
         nav2,
+        coverage_goal_bridge,
+        foxglove_teleop_relay,
         foxglove_bridge,
     ])

@@ -34,8 +34,8 @@ controller_server:
     general_goal_checker:
       stateful: True
       plugin: "nav2_controller::SimpleGoalChecker"
-      xy_goal_tolerance: 0.25
-      yaw_goal_tolerance: 0.25
+      xy_goal_tolerance: 0.5   # 50 cm — stops oscillation at goal
+      yaw_goal_tolerance: 6.28 # 2π — final heading doesn't matter for a mower
     # RPP parameters
     FollowPath:
       plugin: "nav2_regulated_pure_pursuit_controller::RegulatedPurePursuitController"
@@ -122,11 +122,33 @@ global_costmap:
       robot_radius: 0.5
       resolution: 0.05
       track_unknown_space: true
-      plugins: ["static_layer"]
+      # obstacle_layer feeds radar detections into the global costmap so the
+      # coverage planner's A* can route around newly detected objects.
+      # inflation_layer pads those obstacles so A* keeps a safe clearance.
+      plugins: ["static_layer", "obstacle_layer", "inflation_layer"]
       static_layer:
         plugin: "nav2_costmap_2d::StaticLayer"
         map_subscribe_transient_local: True
         map_topic: "/map_grid"
+      obstacle_layer:
+        plugin: "nav2_costmap_2d::ObstacleLayer"
+        enabled: True
+        observation_sources: scan
+        scan:
+          topic: /scan
+          sensor_frame: radar_link
+          data_type: LaserScan
+          obstacle_max_range: 5.0
+          obstacle_min_range: 0.0
+          raytrace_max_range: 8.0
+          raytrace_min_range: 0.0
+          marking: True
+          clearing: True
+          inf_is_valid: False
+      inflation_layer:
+        plugin: "nav2_costmap_2d::InflationLayer"
+        cost_scaling_factor: 3.0
+        inflation_radius: 0.55    # matches local costmap so A* uses same clearance
       always_send_full_costmap: True
 
 
@@ -158,7 +180,7 @@ planner_server:
     GridBased:
       plugin: "nav2_navfn_planner::NavfnPlanner"
       tolerance: 0.5
-      use_astar: false
+      use_astar: true
       allow_unknown: true
 
 behavior_server:

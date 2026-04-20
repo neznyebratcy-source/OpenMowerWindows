@@ -31,6 +31,9 @@ find_package(visualization_msgs REQUIRED)
 find_package(unique_identifier_msgs REQUIRED)
 find_package(pluginlib REQUIRED)
 find_package(opennav_docking REQUIRED)
+find_package(nav2_core REQUIRED)
+find_package(nav2_costmap_2d REQUIRED)
+find_package(nav2_util REQUIRED)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "/usr/share/cmake/geographiclib/")
 find_package(GeographicLib REQUIRED)
@@ -64,6 +67,7 @@ include(cmake/map_server.cmake)
 include(cmake/sim.cmake)
 include(cmake/docking_helper.cmake)
 include(cmake/map_recorder.cmake)
+include(cmake/coverage_planner.cmake)
 
 if (BUILD_TESTING)
     find_package(ament_lint_auto REQUIRED)
@@ -80,6 +84,18 @@ endif ()
 INSTALL(
         DIRECTORY config launch description worlds maps
         DESTINATION share/${PROJECT_NAME}
+)
+
+# Install Python scripts so they are runnable via `ros2 run`
+install(PROGRAMS
+        scripts/coverage_goal_bridge.py
+        DESTINATION lib/${PROJECT_NAME}
+        RENAME coverage_goal_bridge
+)
+install(PROGRAMS
+        scripts/foxglove_teleop_relay.py
+        DESTINATION lib/${PROJECT_NAME}
+        RENAME foxglove_teleop_relay
 )
 
 ament_package()
