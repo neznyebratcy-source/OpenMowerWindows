@@ -38,6 +38,7 @@ services:
       # and the Foxglove layout are picked up without rebuilding the image.
       - ./description:/opt/ws/install/open_mower_next/share/open_mower_next/description
       - ./config:/opt/ws/install/open_mower_next/share/open_mower_next/config
+      - ./scripts/mower_nav_client.py:/opt/ws/mower_nav_client.py
       - ./foxglove:/opt/ws/install/open_mower_next/share/open_mower_next/foxglove
     environment:
       - DISPLAY=:0
