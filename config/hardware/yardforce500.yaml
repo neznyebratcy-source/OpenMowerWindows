@@ -62,4 +62,4 @@ imu:
 # so the scan plane clears the chassis. Adjust z if mounting height changes.
 radar:
   mount:
-    offset: [0.15, 0.0, 0.15] # m  (x=front, y=center, z=elevated)
+    offset: [0.15, 0.0, 0.05] # m  (x=front, y=center, z=scan plane ~14cm world height)

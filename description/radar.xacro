@@ -22,9 +22,8 @@
          360-degree horizontal sweep, 0.1m - 10m range.
          The ros_gz_bridge in sim.launch.py bridges this topic into ROS2. -->
     <gazebo reference="radar_link">
-        <!-- gpu_lidar with ogre2 — works in Docker/WSL2 because docker-compose.yaml
-             sets LIBGL_ALWAYS_SOFTWARE=1 to force Mesa software rendering -->
-        <sensor name="radar" type="gpu_lidar">
+        <!-- cpu lidar — no GPU/ogre2 needed, works reliably in Docker/WSL2 -->
+        <sensor name="radar" type="lidar">
             <gz_frame_id>radar_link</gz_frame_id>
             <always_on>1</always_on>
             <update_rate>10</update_rate>

@@ -6,7 +6,6 @@ from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, RegisterEventHandler, DeclareLaunchArgument, ExecuteProcess
 from launch.event_handlers import OnProcessStart, OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_xml.launch_description_sources import XMLLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -119,11 +118,6 @@ def generate_launch_description():
                 'use_sim_time': 'false',
                 'autostart': 'true',
             }.items(),
-        ),
-
-        IncludeLaunchDescription(
-            XMLLaunchDescriptionSource(
-                [get_package_share_directory("foxglove_bridge"), '/launch/foxglove_bridge_launch.xml']),
         ),
 
         # IncludeLaunchDescription(

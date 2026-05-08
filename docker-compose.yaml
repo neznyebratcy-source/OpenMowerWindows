@@ -27,19 +27,17 @@ services:
       - log:/home/ws/log # keep container pre-build
       - ./maps:/opt/ws/maps
       - ./scripts/entrypoint.sh:/opt/ws/entrypoint.sh
-      - ./scripts/foxglove_teleop_relay.py:/opt/ws/foxglove_teleop_relay.py
       - ./scripts/coverage_goal_bridge.py:/opt/ws/coverage_goal_bridge.py
       - ./scripts/ackermann_hils_bridge.py:/opt/ws/ackermann_hils_bridge.py
       - ./launch/sim.launch.py:/opt/ws/install/open_mower_next/share/open_mower_next/launch/sim.launch.py
       - ./launch/nav2.launch.py:/opt/ws/install/open_mower_next/share/open_mower_next/launch/nav2.launch.py
       - ./worlds:/opt/ws/install/open_mower_next/share/open_mower_next/worlds
-      # Mount description, config, and foxglove folders so changes to
-      # radar.xacro, robot.urdf.xacro, yardforce500.yaml, nav2_params.yaml,
-      # and the Foxglove layout are picked up without rebuilding the image.
+      # Mount description and config so changes to radar.xacro, robot.urdf.xacro,
+      # yardforce500.yaml, nav2_params.yaml, and openmower.rviz are picked up
+      # without rebuilding the image.
       - ./description:/opt/ws/install/open_mower_next/share/open_mower_next/description
       - ./config:/opt/ws/install/open_mower_next/share/open_mower_next/config
       - ./scripts/mower_nav_client.py:/opt/ws/mower_nav_client.py
-      - ./foxglove:/opt/ws/install/open_mower_next/share/open_mower_next/foxglove
     environment:
       - DISPLAY=:0
       - ROS_LOCALHOST_ONLY=1
@@ -50,14 +48,9 @@ services:
       - OM_DATUM_LAT=-22.9
       - OM_DATUM_LONG=-43.2
       - OM_MAP_PATH=/opt/ws/maps/map.geojson
-      # Force Mesa software rendering so gz-sim sensor ray casting works
-      # inside Docker/WSL2 where there is no physical GPU available.
-      # Without these, the radar topic registers but produces no data because
-      # the OpenGL scene for ray casting silently fails to initialize.
+      # Software rendering for Gazebo display/camera sensors in Docker/WSL2.
       - LIBGL_ALWAYS_SOFTWARE=1
       - MESA_GL_VERSION_OVERRIDE=3.3
-    ports:
-      - "8765:8765"
     command: bash /opt/ws/entrypoint.sh
     volumes_from:
       - xserver
