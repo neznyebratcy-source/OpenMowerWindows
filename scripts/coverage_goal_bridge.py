@@ -2,21 +2,23 @@
 """
 coverage_goal_bridge.py
 =======================
-Forwards a clicked location from Foxglove to Nav2's NavigateToPose action.
+Triggers coverage (snake) mowing via Nav2's NavigateToPose action.
 
-Two input modes are supported (either works):
-  - /clicked_point  (geometry_msgs/PointStamped)  — Foxglove "Publish Point" tool
-  - /goal_pose      (geometry_msgs/PoseStamped)   — Foxglove "Publish Pose" tool
+Input:
+  - /mowing_goal  (geometry_msgs/PoseStamped)  — publish a pose to start mowing
 
-In both cases the robot navigates to the x/y position.  Final heading is
-ignored (yaw_goal_tolerance = 2π in nav2_params.yaml).
+Works with any ROS 2 visualization tool (RViz, Foxglove, ros2 topic pub, etc.).
+The robot navigates to the x/y position and the CoveragePlanner plugin generates
+the boustrophedon path over the nearest operation area.
+
+Final heading is ignored (yaw_goal_tolerance = 2π in nav2_params.yaml).
 """
 
 import rclpy
 from rclpy.node import Node
 from rclpy.action import ActionClient
 
-from geometry_msgs.msg import PointStamped, PoseStamped
+from geometry_msgs.msg import PoseStamped
 from nav2_msgs.action import NavigateToPose
 
 
@@ -27,34 +29,17 @@ class CoverageGoalBridge(Node):
         self._action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self._active_goal   = None
 
-        # Accept a plain clicked point (no heading needed)
-        self.create_subscription(
-            PointStamped,
-            '/clicked_point',
-            self._on_clicked_point,
-            10)
-
-        # Also accept a full pose (click-and-drag) as a fallback
         self.create_subscription(
             PoseStamped,
-            '/goal_pose',
-            self._on_goal_pose,
+            '/mowing_goal',
+            self._on_mowing_goal,
             10)
 
         self.get_logger().info(
-            'coverage_goal_bridge ready — click anywhere in the Foxglove 3D panel to navigate.')
+            'coverage_goal_bridge ready — publish a PoseStamped to /mowing_goal to start mowing.')
 
-    # ── /clicked_point → NavigateToPose ───────────────────────────────────────
-    def _on_clicked_point(self, msg: PointStamped):
-        pose = PoseStamped()
-        pose.header = msg.header
-        pose.pose.position = msg.point
-        pose.pose.position.z = 0.0
-        pose.pose.orientation.w = 1.0  # identity — heading doesn't matter
-        self._send_goal(pose)
-
-    # ── /goal_pose → NavigateToPose ───────────────────────────────────────────
-    def _on_goal_pose(self, pose: PoseStamped):
+    # ── /mowing_goal → NavigateToPose ─────────────────────────────────────────
+    def _on_mowing_goal(self, pose: PoseStamped):
         self._send_goal(pose)
 
     # ── shared send logic ─────────────────────────────────────────────────────

@@ -204,7 +204,6 @@ std::vector<geometry_msgs::msg::Point> CoveragePlanner::generateCoverageWaypoint
   for (double y = min_y; y <= max_y + 1e-6; y += mowing_spacing_) {
     auto xs = scanLineIntersections(polygon, y);
     if (xs.empty()) {
-      left_to_right = !left_to_right;
       continue;
     }
 
