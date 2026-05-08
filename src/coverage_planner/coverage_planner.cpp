@@ -7,8 +7,6 @@
 #include <tf2/utils.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
-#include <nav2_core/exceptions.hpp>
-
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -109,7 +107,7 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
   }
 
   if (!found) {
-    throw nav2_core::PlannerException(
+    throw std::runtime_error(
       "CoveragePlanner: no operation area found near the goal — "
       "is the mowing map loaded? (/mowing_map topic)");
   }
@@ -117,7 +115,7 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
   // ── 2. Generate ordered coverage waypoints ───────────────────────────────
   auto waypoints = generateCoverageWaypoints(op_polygon);
   if (waypoints.empty()) {
-    throw nav2_core::PlannerException(
+    throw std::runtime_error(
       "CoveragePlanner: no coverage waypoints generated — "
       "check mowing_spacing and polygon size.");
   }
