@@ -4,15 +4,20 @@
         {
             "type": "Feature",
             "properties": {
-                "id": "dock_1",
-                "name": "Main Dock",
-                "type": "docking_station"
+                "id": "lawn_1",
+                "name": "Front Lawn",
+                "type": "operation"
             },
             "geometry": {
-                "type": "LineString",
+                "type": "Polygon",
                 "coordinates": [
-                    [-43.19998537, -22.89998653],
-                    [-43.19998050, -22.89998653]
+                    [
+                        [-43.2000978, -22.90009],
+                        [-43.1999022, -22.90009],
+                        [-43.1999022, -22.89991],
+                        [-43.2000978, -22.89991],
+                        [-43.2000978, -22.90009]
+                    ]
                 ]
             }
         }

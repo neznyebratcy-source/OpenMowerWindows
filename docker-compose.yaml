@@ -38,6 +38,7 @@ services:
       - ./description:/opt/ws/install/open_mower_next/share/open_mower_next/description
       - ./config:/opt/ws/install/open_mower_next/share/open_mower_next/config
       - ./scripts/mower_nav_client.py:/opt/ws/mower_nav_client.py
+      - ./src/coverage_planner:/opt/ws/src/coverage_planner
     environment:
       - DISPLAY=:0
       - ROS_LOCALHOST_ONLY=1

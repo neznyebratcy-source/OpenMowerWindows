@@ -59,7 +59,10 @@ class CoverageGoalBridge(Node):
 
         goal_msg = NavigateToPose.Goal()
         goal_msg.pose = pose
-        goal_msg.behavior_tree = ''
+        goal_msg.behavior_tree = (
+            '/opt/ws/install/open_mower_next/share/open_mower_next'
+            '/config/coverage_bt.xml'
+        )
 
         future = self._action_client.send_goal_async(
             goal_msg, feedback_callback=self._on_feedback)
