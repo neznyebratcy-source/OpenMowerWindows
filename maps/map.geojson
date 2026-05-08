@@ -1,4 +1,20 @@
 {
     "type": "FeatureCollection",
-    "features": []
+    "features": [
+        {
+            "type": "Feature",
+            "properties": {
+                "id": "dock_1",
+                "name": "Main Dock",
+                "type": "docking_station"
+            },
+            "geometry": {
+                "type": "LineString",
+                "coordinates": [
+                    [-43.19998537, -22.89998653],
+                    [-43.19998050, -22.89998653]
+                ]
+            }
+        }
+    ]
 }

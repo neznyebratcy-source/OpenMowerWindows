@@ -6,7 +6,6 @@ from launch import LaunchDescription
 from launch.actions import IncludeLaunchDescription, RegisterEventHandler, DeclareLaunchArgument, ExecuteProcess
 from launch.event_handlers import OnProcessExit
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch_xml.launch_description_sources import XMLLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 
 from launch_ros.actions import Node
@@ -60,8 +59,14 @@ def generate_launch_description():
             '/imu/data_raw@sensor_msgs/msg/Imu[gz.msgs.IMU',
             '/model/openmower/pose@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
             '/model/docking_station/pose@geometry_msgs/msg/Pose[gz.msgs.Pose',
-            # RADAR ADDITION: bridge the radar scan from Gazebo into ROS2.
-            # The Gazebo topic name must match the <topic> in radar.xacro.
+        ],
+        output='screen'
+    )
+
+    scan_bridge = Node(
+        package='ros_gz_bridge',
+        executable='parameter_bridge',
+        arguments=[
             '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
         ],
         output='screen'
@@ -117,19 +122,14 @@ def generate_launch_description():
         output='screen'
     )
 
-    # Converts /cmd_vel_foxglove (Twist) → /cmd_vel_joy (TwistStamped) so
-    # Foxglove's joystick panel drives the robot without needing start_sim.sh.
-    foxglove_teleop_relay = ExecuteProcess(
-        cmd=['python3', '/opt/ws/foxglove_teleop_relay.py'],
+    rviz_config = os.path.join(get_package_share_directory(package_name), 'config', 'openmower.rviz')
+    rviz = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        arguments=['-d', rviz_config],
+        parameters=[{'use_sim_time': True}],
         output='screen'
-    )
-
-    foxglove_bridge = IncludeLaunchDescription(
-        XMLLaunchDescriptionSource(
-            [get_package_share_directory("foxglove_bridge"), '/launch/foxglove_bridge_launch.xml']),
-        launch_arguments={
-            'include_hidden': 'true',
-        }.items(),
     )
 
     # Change the .sdf depending on which world you are trying to set up
@@ -171,7 +171,7 @@ def generate_launch_description():
         sim_node,
         localization,
         nav2,
+        scan_bridge,
         coverage_goal_bridge,
-        foxglove_teleop_relay,
-        foxglove_bridge,
+        rviz,
     ])

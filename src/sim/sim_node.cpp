@@ -91,7 +91,7 @@ bool open_mower_next::sim::SimNode::isInDockingStation()
 
   // Check if charging port is close enough to the dock
   // Using stricter thresholds since we're checking actual charging port
-  bool inDockingStation = std::abs(translation.x()) < 0.05 && std::abs(translation.y()) < 0.05;
+  bool inDockingStation = std::abs(translation.x()) < 0.15 && std::abs(translation.y()) < 0.15;
 
   // Log the distance to the docking station
   double distance = std::sqrt(std::pow(translation.x(), 2) + std::pow(translation.y(), 2));

@@ -92,10 +92,5 @@ install(PROGRAMS
         DESTINATION lib/${PROJECT_NAME}
         RENAME coverage_goal_bridge
 )
-install(PROGRAMS
-        scripts/foxglove_teleop_relay.py
-        DESTINATION lib/${PROJECT_NAME}
-        RENAME foxglove_teleop_relay
-)
 
 ament_package()
