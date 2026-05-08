@@ -4,13 +4,19 @@ coverage_goal_bridge.py
 =======================
 Triggers coverage (snake) mowing via Nav2's NavigateToPose action.
 
+IMPORTANT: This node is launched automatically by sim.launch.py.
+DO NOT start it manually inside the container — that creates two instances,
+both of which will forward every /mowing_goal message to Nav2.
+
+To trigger mowing, just publish to /mowing_goal from any terminal:
+  ros2 topic pub --once /mowing_goal geometry_msgs/PoseStamped \
+    '{header: {frame_id: "map"}, pose: {position: {x: 5.0, y: 5.0, z: 0.0}, orientation: {w: 1.0}}}'
+
 Input:
   - /mowing_goal  (geometry_msgs/PoseStamped)  — publish a pose to start mowing
 
-Works with any ROS 2 visualization tool (RViz, Foxglove, ros2 topic pub, etc.).
-The robot navigates to the x/y position and the CoveragePlanner plugin generates
-the boustrophedon path over the nearest operation area.
-
+The x/y position selects which mowing zone to cover (nearest zone centroid).
+The CoveragePlanner generates the boustrophedon path over that zone.
 Final heading is ignored (yaw_goal_tolerance = 2π in nav2_params.yaml).
 """
 
