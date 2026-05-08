@@ -69,6 +69,7 @@ local_costmap:
       use_sim_time: True
       update_frequency: 5.0
       publish_frequency: 2.0
+      transform_tolerance: 0.5
       global_frame: odom
       robot_base_frame: base_link
       rolling_window: true
@@ -80,17 +81,13 @@ local_costmap:
       # in the local costmap so Nav2 can avoid them in real time.
       # inflation_layer pads those obstacles by robot_radius so the planner
       # keeps a safe distance without needing a tighter footprint.
-      plugins:
-      - obstacle_layer
-      - inflation_layer
-      # RADAR ADDITION: obstacle layer config
+      plugins: ["obstacle_layer", "inflation_layer"]
       obstacle_layer:
         plugin: "nav2_costmap_2d::ObstacleLayer"
         enabled: True
         observation_sources: scan
         scan:
           topic: /scan
-          sensor_frame: radar_link
           data_type: LaserScan
           obstacle_max_range: 25.0
           obstacle_min_range: 0.0
@@ -111,8 +108,9 @@ global_costmap:
   global_costmap:
     ros__parameters:
       use_sim_time: True
-      update_frequency: 1.0
-      publish_frequency: 1.0
+      update_frequency: 5.0
+      publish_frequency: 2.0
+      transform_tolerance: 0.5
       global_frame: map
       robot_base_frame: base_link
       robot_radius: 0.5
@@ -132,7 +130,6 @@ global_costmap:
         observation_sources: scan
         scan:
           topic: /scan
-          sensor_frame: radar_link
           data_type: LaserScan
           obstacle_max_range: 25.0
           obstacle_min_range: 0.0
