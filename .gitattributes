@@ -1,0 +1,31 @@
+# Normalize line endings for the whole repo.
+# Windows devs get CRLF locally, Linux/Docker always gets LF.
+* text=auto
+
+# Shell scripts must always be LF — CRLF breaks the shebang in Linux/Docker
+*.sh text eol=lf
+
+# Python scripts — LF everywhere
+*.py text eol=lf
+
+# ROS/XML/YAML/config files — LF everywhere
+*.xml text eol=lf
+*.xacro text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+*.launch text eol=lf
+*.sdf text eol=lf
+*.urdf text eol=lf
+
+# CMake
+CMakeLists.txt text eol=lf
+*.cmake text eol=lf
+
+# JSON/GeoJSON
+*.json text eol=lf
+
+# Binaries — no conversion
+*.png binary
+*.jpg binary
+*.dae binary
+*.stl binary
