@@ -34,13 +34,16 @@ void CoveragePlanner::configure(
 
   nav2_util::declare_parameter_if_not_declared(
     node, name_ + ".mowing_spacing", rclcpp::ParameterValue(0.4));
+  nav2_util::declare_parameter_if_not_declared(
+    node, name_ + ".robot_radius", rclcpp::ParameterValue(0.5));
 
   node->get_parameter(name_ + ".mowing_spacing", mowing_spacing_);
+  node->get_parameter(name_ + ".robot_radius",   robot_radius_);
 
   RCLCPP_INFO(
     node->get_logger(),
-    "[CoveragePlanner] Configured — strip spacing: %.2f m",
-    mowing_spacing_);
+    "[CoveragePlanner] Configured — strip spacing: %.2f m, robot radius: %.2f m",
+    mowing_spacing_, robot_radius_);
 
   // Subscribe to the OpenMower map topic; transient_local so we get the last
   // published map even if we subscribe after it was first published.
@@ -197,7 +200,7 @@ std::vector<geometry_msgs::msg::Point> CoveragePlanner::generateCoverageWaypoint
   std::vector<geometry_msgs::msg::Point> waypoints;
   if (polygon.points.size() < 3) { return waypoints; }
 
-  // ── Boustrophedon (snake) sweep — edge to edge, no perimeter pass ─────────
+  // ── Boustrophedon sweep with robot_radius inset and smart start direction ──
   float min_y =  std::numeric_limits<float>::max();
   float max_y = -std::numeric_limits<float>::max();
   for (const auto & pt : polygon.points) {
@@ -205,24 +208,47 @@ std::vector<geometry_msgs::msg::Point> CoveragePlanner::generateCoverageWaypoint
     max_y = std::max(max_y, pt.y);
   }
 
-  // Determine which end of the first strip is closer to the robot start
-  // (perimeter_exit) so the approach is short rather than diagonal.
+  // Phase 1.5: inset first/last strip by robot_radius so the robot body
+  // stays fully inside the polygon boundary on every strip.
+  double eff_min_y = static_cast<double>(min_y) + robot_radius_;
+  double eff_max_y = static_cast<double>(max_y) - robot_radius_;
+  if (eff_min_y >= eff_max_y) { return waypoints; }
+
+  // Phase 2: pick the nearest polygon boundary to the robot as the start of
+  // the sweep.  Starting close to the robot minimises the initial approach.
+  double mid_y    = (eff_min_y + eff_max_y) * 0.5;
+  bool   sweep_up = (static_cast<double>(snake_entry.y) <= mid_y);
+  double y_start  = sweep_up ? eff_min_y : eff_max_y;
+  double y_end    = sweep_up ? eff_max_y : eff_min_y;
+  double y_step   = sweep_up ? mowing_spacing_ : -mowing_spacing_;
+
+  // Determine which end of the first strip is closer to the robot.
   bool left_to_right = true;
   {
-    auto xs0 = scanLineIntersections(polygon, static_cast<double>(min_y) + mowing_spacing_ * 0.5);
+    auto xs0 = scanLineIntersections(polygon, y_start);
     if (xs0.size() >= 2) {
       std::sort(xs0.begin(), xs0.end());
-      double d_left  = std::hypot(snake_entry.x - xs0.front(), snake_entry.y - min_y);
-      double d_right = std::hypot(snake_entry.x - xs0.back(),  snake_entry.y - min_y);
-      left_to_right  = (d_left <= d_right);
+      double x_left  = xs0.front() + robot_radius_;
+      double x_right = xs0.back()  - robot_radius_;
+      if (x_left < x_right) {
+        double d_left  = std::hypot(snake_entry.x - x_left,  snake_entry.y - y_start);
+        double d_right = std::hypot(snake_entry.x - x_right, snake_entry.y - y_start);
+        left_to_right  = (d_left <= d_right);
+      }
     }
   }
 
-  for (double y = min_y; y <= static_cast<double>(max_y) + 1e-6; y += mowing_spacing_) {
+  for (double y = y_start;
+       sweep_up ? (y <= y_end + 1e-6) : (y >= y_end - 1e-6);
+       y += y_step) {
     auto xs = scanLineIntersections(polygon, y);
     if (xs.size() < 2) { continue; }
 
     std::sort(xs.begin(), xs.end());
+
+    // Phase 1.5: inset strip endpoints so robot body stays inside polygon.
+    xs.front() += robot_radius_;
+    xs.back()  -= robot_radius_;
     if (xs.front() >= xs.back()) { continue; }
 
     if (!left_to_right) { std::reverse(xs.begin(), xs.end()); }

@@ -77,6 +77,7 @@ private:
 
   // ── State ─────────────────────────────────────────────────────────────────
   double mowing_spacing_{0.4};   // Strip spacing in metres (= cutting width)
+  double robot_radius_{0.5};     // Inset from polygon edges so robot body stays inside
 
   std::string name_;
   std::string global_frame_;
