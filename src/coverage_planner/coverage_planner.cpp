@@ -112,6 +112,24 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
       "is the mowing map loaded? (/mowing_map topic)");
   }
 
+  // Rotate polygon so perimeter starts at the vertex nearest to the robot,
+  // avoiding a long detour to a fixed corner on every new goal.
+  {
+    size_t best_k = 0;
+    double best_d = std::numeric_limits<double>::max();
+    for (size_t k = 0; k < op_polygon.points.size(); k++) {
+      double d = std::hypot(
+        start.pose.position.x - op_polygon.points[k].x,
+        start.pose.position.y - op_polygon.points[k].y);
+      if (d < best_d) { best_d = d; best_k = k; }
+    }
+    if (best_k > 0) {
+      std::rotate(op_polygon.points.begin(),
+                  op_polygon.points.begin() + best_k,
+                  op_polygon.points.end());
+    }
+  }
+
   // ── 2. Generate ordered coverage waypoints ───────────────────────────────
   auto waypoints = generateCoverageWaypoints(op_polygon);
   if (waypoints.empty()) {
@@ -199,15 +217,26 @@ std::vector<geometry_msgs::msg::Point> CoveragePlanner::generateCoverageWaypoint
     max_y = std::max(max_y, pt.y);
   }
 
+  // Inset the snake by perimeter_passes_ strips on every side so that snake
+  // endpoints never overlap with the perimeter path in 2D space.  Without this
+  // inset, RPP confuses the left/right perimeter edges with snake endpoints
+  // and loses its position on the path, causing oscillating distance_remaining.
+  const double inset = perimeter_passes_ * mowing_spacing_;
+
   bool left_to_right = true;
-  for (double y = min_y; y <= max_y + 1e-6; y += mowing_spacing_) {
+  for (double y = min_y + inset; y <= max_y - inset + 1e-6; y += mowing_spacing_) {
     auto xs = scanLineIntersections(polygon, y);
-    if (xs.empty()) {
+    if (xs.size() < 2) {
       continue;
     }
 
-    // Sort intersections; take all as strip entry/exit x-values
+    // Sort intersections and apply X inset so strip endpoints don't touch
+    // the perimeter sides.
     std::sort(xs.begin(), xs.end());
+    xs.front() += inset;
+    xs.back()  -= inset;
+    if (xs.front() >= xs.back()) { continue; }
+
     if (!left_to_right) { std::reverse(xs.begin(), xs.end()); }
 
     for (double x : xs) {
