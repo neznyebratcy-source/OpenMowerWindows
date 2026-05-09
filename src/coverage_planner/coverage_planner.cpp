@@ -1,10 +1,7 @@
 #include "coverage_planner/coverage_planner.hpp"
-#include "coverage_planner/astar.hpp"
 
 #include <nav2_util/node_utils.hpp>
-#include <nav2_costmap_2d/cost_values.hpp>
 #include <tf2/LinearMath/Quaternion.h>
-#include <tf2/utils.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include <algorithm>
@@ -31,23 +28,19 @@ void CoveragePlanner::configure(
   node_         = parent;
   name_         = name;
   costmap_ros_  = costmap_ros;
-  costmap_      = costmap_ros_->getCostmap();
   global_frame_ = costmap_ros_->getGlobalFrameID();
 
   auto node = node_.lock();
 
   nav2_util::declare_parameter_if_not_declared(
     node, name_ + ".mowing_spacing", rclcpp::ParameterValue(0.4));
-  nav2_util::declare_parameter_if_not_declared(
-    node, name_ + ".perimeter_passes", rclcpp::ParameterValue(1));
 
-  node->get_parameter(name_ + ".mowing_spacing",   mowing_spacing_);
-  node->get_parameter(name_ + ".perimeter_passes",  perimeter_passes_);
+  node->get_parameter(name_ + ".mowing_spacing", mowing_spacing_);
 
   RCLCPP_INFO(
     node->get_logger(),
-    "[CoveragePlanner] Configured — strip spacing: %.2f m, perimeter passes: %d",
-    mowing_spacing_, perimeter_passes_);
+    "[CoveragePlanner] Configured — strip spacing: %.2f m",
+    mowing_spacing_);
 
   // Subscribe to the OpenMower map topic; transient_local so we get the last
   // published map even if we subscribe after it was first published.
@@ -153,7 +146,7 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
     "Coverage path: %zu waypoints over %.1f m² area.",
     waypoints.size(), best_dist);
 
-  // ── 3. Build path: start → wp[0] → wp[1] → … with A* obstacle detours ──
+  // ── 3. Build path: start → wp[0] → wp[1] → … straight lines ────────────
   path.poses.push_back(start);
 
   // Helper: build a stamped pose from a Point + yaw
@@ -170,7 +163,7 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
     double dir = std::atan2(
       waypoints[0].y - start.pose.position.y,
       waypoints[0].x - start.pose.position.x);
-    auto seg = connectWithAstar(start, make_pose(waypoints[0], dir), cancel_checker);
+    auto seg = interpolateLine(start, make_pose(waypoints[0], dir));
     path.poses.insert(path.poses.end(), seg.begin(), seg.end());
   }
 
@@ -183,10 +176,9 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
     double dir = std::atan2(
       waypoints[i].y - waypoints[i - 1].y,
       waypoints[i].x - waypoints[i - 1].x);
-    auto seg = connectWithAstar(
+    auto seg = interpolateLine(
       make_pose(waypoints[i - 1], dir),
-      make_pose(waypoints[i],     dir),
-      cancel_checker);
+      make_pose(waypoints[i],     dir));
     path.poses.insert(path.poses.end(), seg.begin(), seg.end());
   }
 
@@ -266,120 +258,6 @@ std::vector<double> CoveragePlanner::scanLineIntersections(
     }
   }
   return xs;
-}
-
-// ── Obstacle-aware segment routing ─────────────────────────────────────────────
-
-std::vector<geometry_msgs::msg::PoseStamped> CoveragePlanner::connectWithAstar(
-  const geometry_msgs::msg::PoseStamped & from,
-  const geometry_msgs::msg::PoseStamped & to,
-  const std::function<bool()> & cancel_checker)
-{
-  if (cancel_checker()) { return {}; }
-
-  // Lock the costmap once for the entire call (both line-check and A* search)
-  costmap_ = costmap_ros_->getCostmap();
-  std::lock_guard<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
-
-  if (isLineClearLocked(
-    from.pose.position.x, from.pose.position.y,
-    to.pose.position.x,   to.pose.position.y))
-  {
-    // Happy path: straight line, no obstacles
-    return interpolateLine(from, to);
-  }
-
-  // Blocked — find a detour with A* on the global costmap
-  unsigned int sx_u, sy_u, gx_u, gy_u;
-  const bool start_ok =
-    costmap_->worldToMap(from.pose.position.x, from.pose.position.y, sx_u, sy_u);
-  const bool goal_ok  =
-    costmap_->worldToMap(to.pose.position.x,   to.pose.position.y,   gx_u, gy_u);
-
-  if (!start_ok || !goal_ok) {
-    RCLCPP_WARN(
-      rclcpp::get_logger("CoveragePlanner"),
-      "Waypoint outside costmap bounds — falling back to straight line.");
-    return interpolateLine(from, to);
-  }
-
-  auto grid_path = aStarGrid(
-    costmap_,
-    static_cast<int>(sx_u), static_cast<int>(sy_u),
-    static_cast<int>(gx_u), static_cast<int>(gy_u));
-
-  if (grid_path.empty()) {
-    RCLCPP_WARN(
-      rclcpp::get_logger("CoveragePlanner"),
-      "A* could not find a path around the obstacle — using straight line.");
-    return interpolateLine(from, to);
-  }
-
-  // Convert grid cells back to world-frame stamped poses
-  std::vector<geometry_msgs::msg::PoseStamped> poses;
-  poses.reserve(grid_path.size());
-
-  for (size_t i = 0; i < grid_path.size(); i++) {
-    double wx, wy;
-    costmap_->mapToWorld(
-      static_cast<unsigned int>(grid_path[i].first),
-      static_cast<unsigned int>(grid_path[i].second),
-      wx, wy);
-
-    // Orientation: point toward the next cell; use goal yaw on the last cell
-    double yaw = 0.0;
-    if (i + 1 < grid_path.size()) {
-      double nx, ny;
-      costmap_->mapToWorld(
-        static_cast<unsigned int>(grid_path[i + 1].first),
-        static_cast<unsigned int>(grid_path[i + 1].second),
-        nx, ny);
-      yaw = std::atan2(ny - wy, nx - wx);
-    } else {
-      yaw = tf2::getYaw(to.pose.orientation);
-    }
-
-    geometry_msgs::msg::PoseStamped ps;
-    ps.header           = from.header;
-    ps.pose.position.x  = wx;
-    ps.pose.position.y  = wy;
-    ps.pose.position.z  = 0.0;
-    ps.pose.orientation = yawToQuaternion(yaw);
-    poses.push_back(ps);
-  }
-  return poses;
-}
-
-// ── Line-of-sight check (Bresenham) ───────────────────────────────────────────
-
-bool CoveragePlanner::isLineClearLocked(double x1, double y1, double x2, double y2)
-{
-  // Caller must already hold costmap_->getMutex()
-  unsigned int mx1, my1, mx2, my2;
-  if (!costmap_->worldToMap(x1, y1, mx1, my1)) { return false; }
-  if (!costmap_->worldToMap(x2, y2, mx2, my2)) { return false; }
-
-  int sx = static_cast<int>(mx1), sy = static_cast<int>(my1);
-  int ex = static_cast<int>(mx2), ey = static_cast<int>(my2);
-  int dx = std::abs(ex - sx), dy = std::abs(ey - sy);
-  int step_x = (sx < ex) ? 1 : -1;
-  int step_y = (sy < ey) ? 1 : -1;
-  int err = dx - dy;
-  int x = sx, y = sy;
-
-  while (true) {
-    if (costmap_->getCost(
-          static_cast<unsigned int>(x),
-          static_cast<unsigned int>(y)) >= nav2_costmap_2d::LETHAL_OBSTACLE)
-    {
-      return false;
-    }
-    if (x == ex && y == ey) { break; }
-    int e2 = 2 * err;
-    if (e2 > -dy) { err -= dy; x += step_x; }
-    if (e2 <  dx) { err += dx; y += step_y; }
-  }
-  return true;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

@@ -23,9 +23,7 @@ namespace open_mower_next::coverage_planner
 
 // Nav2 GlobalPlanner plugin that generates a boustrophedon (snake) coverage path
 // over the nearest operation area polygon.  Each strip runs edge-to-edge across
-// the polygon.  Consecutive strip endpoints are connected with either a straight
-// line (when obstacle-free) or an A* detour around blocked cells in the global
-// costmap.
+// the polygon with straight-line interpolation between endpoints.
 class CoveragePlanner : public nav2_core::GlobalPlanner
 {
 public:
@@ -66,19 +64,7 @@ private:
   std::vector<double> scanLineIntersections(
     const geometry_msgs::msg::Polygon & polygon, double y);
 
-  // ── Obstacle-aware segment routing ───────────────────────────────────────
-
-  // Returns a path segment from `from` to `to`.
-  // Uses straight-line interpolation when the line is clear; falls back to A*
-  // when an obstacle is detected. The costmap mutex must NOT be held by the caller.
-  std::vector<geometry_msgs::msg::PoseStamped> connectWithAstar(
-    const geometry_msgs::msg::PoseStamped & from,
-    const geometry_msgs::msg::PoseStamped & to,
-    const std::function<bool()> & cancel_checker);
-
-  // Walks the straight line using Bresenham's algorithm; returns false if any cell
-  // has cost >= LETHAL_OBSTACLE.  Caller must hold the costmap mutex.
-  bool isLineClearLocked(double x1, double y1, double x2, double y2);
+  // ── Path interpolation ────────────────────────────────────────────────────
 
   // Densely interpolates world-frame poses along a straight line at `step` metres.
   std::vector<geometry_msgs::msg::PoseStamped> interpolateLine(
@@ -91,14 +77,12 @@ private:
 
   // ── State ─────────────────────────────────────────────────────────────────
   double mowing_spacing_{0.4};   // Strip spacing in metres (= cutting width)
-  int perimeter_passes_{1};       // How many perimeter laps before interior fill
 
   std::string name_;
   std::string global_frame_;
 
   rclcpp_lifecycle::LifecycleNode::WeakPtr              node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS>        costmap_ros_;
-  nav2_costmap_2d::Costmap2D *                          costmap_{nullptr};
 
   // Receives the OpenMower area map to obtain operation-area polygons
   rclcpp::Subscription<open_mower_next::msg::Map>::SharedPtr map_sub_;
