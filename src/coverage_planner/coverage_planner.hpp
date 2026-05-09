@@ -55,8 +55,11 @@ private:
   // ── Coverage path generation ──────────────────────────────────────────────
 
   // Returns ordered waypoints: perimeter passes first, then boustrophedon interior.
+  // perimeter_exit: the point where the perimeter ends (= polygon.points[0]),
+  // used to pick which end of the first snake strip to start from.
   std::vector<geometry_msgs::msg::Point> generateCoverageWaypoints(
-    const geometry_msgs::msg::Polygon & polygon);
+    const geometry_msgs::msg::Polygon & polygon,
+    const geometry_msgs::msg::Point32 & perimeter_exit);
 
   // Computes x-coordinates where a horizontal scan line at y intersects polygon edges.
   std::vector<double> scanLineIntersections(

@@ -165,7 +165,7 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
   }
 
   // ── 2. Generate ordered coverage waypoints ───────────────────────────────
-  auto waypoints = generateCoverageWaypoints(op_polygon);
+  auto waypoints = generateCoverageWaypoints(op_polygon, op_polygon.points[0]);
   if (waypoints.empty()) {
     throw std::runtime_error(
       "CoveragePlanner: no coverage waypoints generated — "
@@ -222,7 +222,8 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
 // ── Coverage waypoint generation ───────────────────────────────────────────────
 
 std::vector<geometry_msgs::msg::Point> CoveragePlanner::generateCoverageWaypoints(
-  const geometry_msgs::msg::Polygon & polygon)
+  const geometry_msgs::msg::Polygon & polygon,
+  const geometry_msgs::msg::Point32 & perimeter_exit)
 {
   std::vector<geometry_msgs::msg::Point> waypoints;
   if (polygon.points.size() < 3) { return waypoints; }
@@ -257,15 +258,28 @@ std::vector<geometry_msgs::msg::Point> CoveragePlanner::generateCoverageWaypoint
   // and loses its position on the path, causing oscillating distance_remaining.
   const double inset = perimeter_passes_ * mowing_spacing_;
 
+  // Determine which end of the first snake strip is closer to the perimeter exit,
+  // so the perimeter→snake transition is a short perpendicular move, not a diagonal.
   bool left_to_right = true;
+  {
+    double first_y = min_y + inset;
+    auto xs0 = scanLineIntersections(polygon, first_y);
+    if (xs0.size() >= 2) {
+      std::sort(xs0.begin(), xs0.end());
+      double x_left  = xs0.front() + inset;
+      double x_right = xs0.back()  - inset;
+      double d_left  = std::hypot(perimeter_exit.x - x_left,  perimeter_exit.y - first_y);
+      double d_right = std::hypot(perimeter_exit.x - x_right, perimeter_exit.y - first_y);
+      left_to_right  = (d_left <= d_right);
+    }
+  }
+
   for (double y = min_y + inset; y <= max_y - inset + 1e-6; y += mowing_spacing_) {
     auto xs = scanLineIntersections(polygon, y);
     if (xs.size() < 2) {
       continue;
     }
 
-    // Sort intersections and apply X inset so strip endpoints don't touch
-    // the perimeter sides.
     std::sort(xs.begin(), xs.end());
     xs.front() += inset;
     xs.back()  -= inset;
