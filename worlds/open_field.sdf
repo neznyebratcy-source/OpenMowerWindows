@@ -70,8 +70,8 @@
             </link>
         </model>
 
-        <!-- OpenMower Docking Station -->
-        <model name="docking_station">
+        <!-- OpenMower Docking Station (temporarily disabled) -->
+        <!-- <model name="docking_station">
             <static>true</static>
             <pose>1.5 1.5 0 0 0 0</pose>
 
@@ -192,7 +192,7 @@
                 <parent>base_plate</parent>
                 <child>guide_rail_right</child>
             </joint>
-        </model>
+        </model> -->
 
     </world>
 </sdf>

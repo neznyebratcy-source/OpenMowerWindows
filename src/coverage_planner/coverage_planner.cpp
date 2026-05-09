@@ -112,21 +112,55 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
       "is the mowing map loaded? (/mowing_map topic)");
   }
 
-  // Rotate polygon so perimeter starts at the vertex nearest to the robot,
-  // avoiding a long detour to a fixed corner on every new goal.
+  // Find the nearest point on any polygon edge to the robot start position,
+  // then reorder the polygon so the perimeter begins at that entry point.
+  // This avoids a long diagonal approach to a fixed corner.
   {
-    size_t best_k = 0;
-    double best_d = std::numeric_limits<double>::max();
-    for (size_t k = 0; k < op_polygon.points.size(); k++) {
-      double d = std::hypot(
-        start.pose.position.x - op_polygon.points[k].x,
-        start.pose.position.y - op_polygon.points[k].y);
-      if (d < best_d) { best_d = d; best_k = k; }
+    const size_t n = op_polygon.points.size();
+    size_t best_edge = 0;
+    double best_t    = 0.0;
+    double best_d    = std::numeric_limits<double>::max();
+
+    for (size_t i = 0; i < n; i++) {
+      const auto & p1 = op_polygon.points[i];
+      const auto & p2 = op_polygon.points[(i + 1) % n];
+      double ex = p2.x - p1.x, ey = p2.y - p1.y;
+      double len2 = ex * ex + ey * ey;
+      if (len2 < 1e-9) { continue; }
+      double t = ((start.pose.position.x - p1.x) * ex +
+                  (start.pose.position.y - p1.y) * ey) / len2;
+      t = std::clamp(t, 0.0, 1.0);
+      double px = p1.x + t * ex, py = p1.y + t * ey;
+      double d  = std::hypot(start.pose.position.x - px,
+                             start.pose.position.y - py);
+      if (d < best_d) { best_d = d; best_edge = i; best_t = t; }
     }
-    if (best_k > 0) {
-      std::rotate(op_polygon.points.begin(),
-                  op_polygon.points.begin() + best_k,
-                  op_polygon.points.end());
+
+    if (best_t < 1e-3) {
+      // Entry is at vertex p[best_edge] — rotate it to front
+      if (best_edge > 0) {
+        std::rotate(op_polygon.points.begin(),
+                    op_polygon.points.begin() + best_edge,
+                    op_polygon.points.end());
+      }
+    } else {
+      // Entry is on the edge or at its far vertex — rotate p[best_edge+1] to front
+      size_t next = (best_edge + 1) % n;
+      if (next > 0) {
+        std::rotate(op_polygon.points.begin(),
+                    op_polygon.points.begin() + next,
+                    op_polygon.points.end());
+      }
+      if (best_t < 1.0 - 1e-3) {
+        // Entry is mid-edge — insert the projected point before p[best_edge+1]
+        const auto & pi  = op_polygon.points.back();   // p[best_edge]
+        const auto & pi1 = op_polygon.points.front();  // p[(best_edge+1)%n]
+        geometry_msgs::msg::Point32 entry;
+        entry.x = pi.x + best_t * (pi1.x - pi.x);
+        entry.y = pi.y + best_t * (pi1.y - pi.y);
+        entry.z = 0.0;
+        op_polygon.points.insert(op_polygon.points.begin(), entry);
+      }
     }
   }
 
