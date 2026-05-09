@@ -112,60 +112,37 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
       "is the mowing map loaded? (/mowing_map topic)");
   }
 
-  // Find the nearest point on any polygon edge to the robot start position,
-  // then reorder the polygon so the perimeter begins at that entry point.
-  // This avoids a long diagonal approach to a fixed corner.
+  // Find the nearest point on any polygon edge to the robot start — used only
+  // to decide which end of the first snake strip to approach first.
+  geometry_msgs::msg::Point32 snake_entry;
+  snake_entry.x = static_cast<float>(start.pose.position.x);
+  snake_entry.y = static_cast<float>(start.pose.position.y);
+  snake_entry.z = 0.0f;
   {
     const size_t n = op_polygon.points.size();
-    size_t best_edge = 0;
-    double best_t    = 0.0;
-    double best_d    = std::numeric_limits<double>::max();
-
+    double best_d = std::numeric_limits<double>::max();
     for (size_t i = 0; i < n; i++) {
       const auto & p1 = op_polygon.points[i];
       const auto & p2 = op_polygon.points[(i + 1) % n];
       double ex = p2.x - p1.x, ey = p2.y - p1.y;
       double len2 = ex * ex + ey * ey;
       if (len2 < 1e-9) { continue; }
-      double t = ((start.pose.position.x - p1.x) * ex +
-                  (start.pose.position.y - p1.y) * ey) / len2;
-      t = std::clamp(t, 0.0, 1.0);
+      double t = std::clamp(
+        ((start.pose.position.x - p1.x) * ex +
+         (start.pose.position.y - p1.y) * ey) / len2, 0.0, 1.0);
       double px = p1.x + t * ex, py = p1.y + t * ey;
       double d  = std::hypot(start.pose.position.x - px,
                              start.pose.position.y - py);
-      if (d < best_d) { best_d = d; best_edge = i; best_t = t; }
-    }
-
-    if (best_t < 1e-3) {
-      // Entry is at vertex p[best_edge] — rotate it to front
-      if (best_edge > 0) {
-        std::rotate(op_polygon.points.begin(),
-                    op_polygon.points.begin() + best_edge,
-                    op_polygon.points.end());
-      }
-    } else {
-      // Entry is on the edge or at its far vertex — rotate p[best_edge+1] to front
-      size_t next = (best_edge + 1) % n;
-      if (next > 0) {
-        std::rotate(op_polygon.points.begin(),
-                    op_polygon.points.begin() + next,
-                    op_polygon.points.end());
-      }
-      if (best_t < 1.0 - 1e-3) {
-        // Entry is mid-edge — insert the projected point before p[best_edge+1]
-        const auto & pi  = op_polygon.points.back();   // p[best_edge]
-        const auto & pi1 = op_polygon.points.front();  // p[(best_edge+1)%n]
-        geometry_msgs::msg::Point32 entry;
-        entry.x = pi.x + best_t * (pi1.x - pi.x);
-        entry.y = pi.y + best_t * (pi1.y - pi.y);
-        entry.z = 0.0;
-        op_polygon.points.insert(op_polygon.points.begin(), entry);
+      if (d < best_d) {
+        best_d = d;
+        snake_entry.x = static_cast<float>(px);
+        snake_entry.y = static_cast<float>(py);
       }
     }
   }
 
   // ── 2. Generate ordered coverage waypoints ───────────────────────────────
-  auto waypoints = generateCoverageWaypoints(op_polygon, op_polygon.points[0]);
+  auto waypoints = generateCoverageWaypoints(op_polygon, snake_entry);
   if (waypoints.empty()) {
     throw std::runtime_error(
       "CoveragePlanner: no coverage waypoints generated — "
@@ -223,28 +200,12 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
 
 std::vector<geometry_msgs::msg::Point> CoveragePlanner::generateCoverageWaypoints(
   const geometry_msgs::msg::Polygon & polygon,
-  const geometry_msgs::msg::Point32 & perimeter_exit)
+  const geometry_msgs::msg::Point32 & snake_entry)
 {
   std::vector<geometry_msgs::msg::Point> waypoints;
   if (polygon.points.size() < 3) { return waypoints; }
 
-  // ── Phase 1: Perimeter pass(es) ──────────────────────────────────────────
-  // Walk the polygon vertices in order to cleanly cut the boundary first.
-  for (int pass = 0; pass < perimeter_passes_; pass++) {
-    for (const auto & pt : polygon.points) {
-      geometry_msgs::msg::Point p;
-      p.x = pt.x; p.y = pt.y; p.z = 0.0;
-      waypoints.push_back(p);
-    }
-    // Close the loop back to the first vertex
-    geometry_msgs::msg::Point first;
-    first.x = polygon.points[0].x;
-    first.y = polygon.points[0].y;
-    first.z = 0.0;
-    waypoints.push_back(first);
-  }
-
-  // ── Phase 2: Boustrophedon (snake) interior ──────────────────────────────
+  // ── Boustrophedon (snake) sweep — edge to edge, no perimeter pass ─────────
   float min_y =  std::numeric_limits<float>::max();
   float max_y = -std::numeric_limits<float>::max();
   for (const auto & pt : polygon.points) {
@@ -252,37 +213,24 @@ std::vector<geometry_msgs::msg::Point> CoveragePlanner::generateCoverageWaypoint
     max_y = std::max(max_y, pt.y);
   }
 
-  // Inset the snake by perimeter_passes_ strips on every side so that snake
-  // endpoints never overlap with the perimeter path in 2D space.  Without this
-  // inset, RPP confuses the left/right perimeter edges with snake endpoints
-  // and loses its position on the path, causing oscillating distance_remaining.
-  const double inset = perimeter_passes_ * mowing_spacing_;
-
-  // Determine which end of the first snake strip is closer to the perimeter exit,
-  // so the perimeter→snake transition is a short perpendicular move, not a diagonal.
+  // Determine which end of the first strip is closer to the robot start
+  // (perimeter_exit) so the approach is short rather than diagonal.
   bool left_to_right = true;
   {
-    double first_y = min_y + inset;
-    auto xs0 = scanLineIntersections(polygon, first_y);
+    auto xs0 = scanLineIntersections(polygon, static_cast<double>(min_y) + mowing_spacing_ * 0.5);
     if (xs0.size() >= 2) {
       std::sort(xs0.begin(), xs0.end());
-      double x_left  = xs0.front() + inset;
-      double x_right = xs0.back()  - inset;
-      double d_left  = std::hypot(perimeter_exit.x - x_left,  perimeter_exit.y - first_y);
-      double d_right = std::hypot(perimeter_exit.x - x_right, perimeter_exit.y - first_y);
+      double d_left  = std::hypot(snake_entry.x - xs0.front(), snake_entry.y - min_y);
+      double d_right = std::hypot(snake_entry.x - xs0.back(),  snake_entry.y - min_y);
       left_to_right  = (d_left <= d_right);
     }
   }
 
-  for (double y = min_y + inset; y <= max_y - inset + 1e-6; y += mowing_spacing_) {
+  for (double y = min_y; y <= static_cast<double>(max_y) + 1e-6; y += mowing_spacing_) {
     auto xs = scanLineIntersections(polygon, y);
-    if (xs.size() < 2) {
-      continue;
-    }
+    if (xs.size() < 2) { continue; }
 
     std::sort(xs.begin(), xs.end());
-    xs.front() += inset;
-    xs.back()  -= inset;
     if (xs.front() >= xs.back()) { continue; }
 
     if (!left_to_right) { std::reverse(xs.begin(), xs.end()); }

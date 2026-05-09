@@ -21,10 +21,11 @@
 namespace open_mower_next::coverage_planner
 {
 
-// Nav2 GlobalPlanner plugin that generates a full boustrophedon (snake) coverage
-// path over the nearest operation area polygon, then connects each pair of
-// consecutive strip endpoints with either a straight line (when obstacle-free) or
-// an A* detour around blocked cells in the global costmap.
+// Nav2 GlobalPlanner plugin that generates a boustrophedon (snake) coverage path
+// over the nearest operation area polygon.  Each strip runs edge-to-edge across
+// the polygon.  Consecutive strip endpoints are connected with either a straight
+// line (when obstacle-free) or an A* detour around blocked cells in the global
+// costmap.
 class CoveragePlanner : public nav2_core::GlobalPlanner
 {
 public:
@@ -54,12 +55,12 @@ public:
 private:
   // ── Coverage path generation ──────────────────────────────────────────────
 
-  // Returns ordered waypoints: perimeter passes first, then boustrophedon interior.
-  // perimeter_exit: the point where the perimeter ends (= polygon.points[0]),
-  // used to pick which end of the first snake strip to start from.
+  // Returns boustrophedon (snake) waypoints covering the entire polygon edge-to-edge.
+  // snake_entry: the robot's nearest point on the polygon boundary, used to pick
+  // which end of the first strip to start from (minimises the initial approach).
   std::vector<geometry_msgs::msg::Point> generateCoverageWaypoints(
     const geometry_msgs::msg::Polygon & polygon,
-    const geometry_msgs::msg::Point32 & perimeter_exit);
+    const geometry_msgs::msg::Point32 & snake_entry);
 
   // Computes x-coordinates where a horizontal scan line at y intersects polygon edges.
   std::vector<double> scanLineIntersections(
