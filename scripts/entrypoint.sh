@@ -65,11 +65,15 @@ else
     echo "[entrypoint] WARNING: gcc not found — FastCDR shim skipped."
 fi
 
-# Remove stale coverage_planner ament index entry that points to a plugins.xml
-# which doesn't exist yet (plugin not built), causing pluginlib to spam errors.
-rm -f /opt/ws/install/open_mower_next/share/ament_index/resource_index/nav2_core__pluginlib__plugin/open_mower_next
-
 python3 -m pip install pyserial transforms3d --break-system-packages 2>/dev/null || true
+
+# Ensure CoveragePlanner plugin is registered in the ament index.
+# pluginlib_export_plugin_description_file() generates this marker at build
+# time, but it may have been removed by a previous workaround.
+_AMENT_PLUGIN_DIR=/opt/ws/install/open_mower_next/share/ament_index/resource_index/nav2_core__pluginlib__plugin
+mkdir -p "$_AMENT_PLUGIN_DIR"
+echo 'share/open_mower_next/src/coverage_planner/plugins.xml' \
+    > "$_AMENT_PLUGIN_DIR/open_mower_next"
 
 source /opt/ros/jazzy/setup.bash
 source install/setup.bash

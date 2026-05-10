@@ -1,10 +1,7 @@
 #include "coverage_planner/coverage_planner.hpp"
-#include "coverage_planner/astar.hpp"
 
 #include <nav2_util/node_utils.hpp>
-#include <nav2_costmap_2d/cost_values.hpp>
 #include <tf2/LinearMath/Quaternion.h>
-#include <tf2/utils.h>
 #include <tf2_geometry_msgs/tf2_geometry_msgs.hpp>
 
 #include <algorithm>
@@ -31,7 +28,6 @@ void CoveragePlanner::configure(
   node_         = parent;
   name_         = name;
   costmap_ros_  = costmap_ros;
-  costmap_      = costmap_ros_->getCostmap();
   global_frame_ = costmap_ros_->getGlobalFrameID();
 
   auto node = node_.lock();
@@ -39,15 +35,15 @@ void CoveragePlanner::configure(
   nav2_util::declare_parameter_if_not_declared(
     node, name_ + ".mowing_spacing", rclcpp::ParameterValue(0.4));
   nav2_util::declare_parameter_if_not_declared(
-    node, name_ + ".perimeter_passes", rclcpp::ParameterValue(1));
+    node, name_ + ".robot_radius", rclcpp::ParameterValue(0.5));
 
-  node->get_parameter(name_ + ".mowing_spacing",   mowing_spacing_);
-  node->get_parameter(name_ + ".perimeter_passes",  perimeter_passes_);
+  node->get_parameter(name_ + ".mowing_spacing", mowing_spacing_);
+  node->get_parameter(name_ + ".robot_radius",   robot_radius_);
 
   RCLCPP_INFO(
     node->get_logger(),
-    "[CoveragePlanner] Configured — strip spacing: %.2f m, perimeter passes: %d",
-    mowing_spacing_, perimeter_passes_);
+    "[CoveragePlanner] Configured — strip spacing: %.2f m, robot radius: %.2f m",
+    mowing_spacing_, robot_radius_);
 
   // Subscribe to the OpenMower map topic; transient_local so we get the last
   // published map even if we subscribe after it was first published.
@@ -107,25 +103,53 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
   }
 
   if (!found) {
-    RCLCPP_WARN(
-      rclcpp::get_logger("CoveragePlanner"),
-      "No operation area found in the map — cannot generate coverage path. "
-      "Make sure you have recorded and saved at least one TYPE_OPERATION area.");
-    return path;
+    throw std::runtime_error(
+      "CoveragePlanner: no operation area found near the goal — "
+      "is the mowing map loaded? (/mowing_map topic)");
+  }
+
+  // Find the nearest point on any polygon edge to the robot start — used only
+  // to decide which end of the first snake strip to approach first.
+  geometry_msgs::msg::Point32 snake_entry;
+  snake_entry.x = static_cast<float>(start.pose.position.x);
+  snake_entry.y = static_cast<float>(start.pose.position.y);
+  snake_entry.z = 0.0f;
+  {
+    const size_t n = op_polygon.points.size();
+    double best_d = std::numeric_limits<double>::max();
+    for (size_t i = 0; i < n; i++) {
+      const auto & p1 = op_polygon.points[i];
+      const auto & p2 = op_polygon.points[(i + 1) % n];
+      double ex = p2.x - p1.x, ey = p2.y - p1.y;
+      double len2 = ex * ex + ey * ey;
+      if (len2 < 1e-9) { continue; }
+      double t = std::clamp(
+        ((start.pose.position.x - p1.x) * ex +
+         (start.pose.position.y - p1.y) * ey) / len2, 0.0, 1.0);
+      double px = p1.x + t * ex, py = p1.y + t * ey;
+      double d  = std::hypot(start.pose.position.x - px,
+                             start.pose.position.y - py);
+      if (d < best_d) {
+        best_d = d;
+        snake_entry.x = static_cast<float>(px);
+        snake_entry.y = static_cast<float>(py);
+      }
+    }
   }
 
   // ── 2. Generate ordered coverage waypoints ───────────────────────────────
-  auto waypoints = generateCoverageWaypoints(op_polygon);
+  auto waypoints = generateCoverageWaypoints(op_polygon, snake_entry);
   if (waypoints.empty()) {
-    RCLCPP_WARN(rclcpp::get_logger("CoveragePlanner"), "No waypoints generated.");
-    return path;
+    throw std::runtime_error(
+      "CoveragePlanner: no coverage waypoints generated — "
+      "check mowing_spacing and polygon size.");
   }
   RCLCPP_INFO(
     rclcpp::get_logger("CoveragePlanner"),
     "Coverage path: %zu waypoints over %.1f m² area.",
     waypoints.size(), best_dist);
 
-  // ── 3. Build path: start → wp[0] → wp[1] → … with A* obstacle detours ──
+  // ── 3. Build path: start → wp[0] → wp[1] → … straight lines ────────────
   path.poses.push_back(start);
 
   // Helper: build a stamped pose from a Point + yaw
@@ -142,7 +166,7 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
     double dir = std::atan2(
       waypoints[0].y - start.pose.position.y,
       waypoints[0].x - start.pose.position.x);
-    auto seg = connectWithAstar(start, make_pose(waypoints[0], dir), cancel_checker);
+    auto seg = interpolateLine(start, make_pose(waypoints[0], dir));
     path.poses.insert(path.poses.end(), seg.begin(), seg.end());
   }
 
@@ -155,10 +179,9 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
     double dir = std::atan2(
       waypoints[i].y - waypoints[i - 1].y,
       waypoints[i].x - waypoints[i - 1].x);
-    auto seg = connectWithAstar(
+    auto seg = interpolateLine(
       make_pose(waypoints[i - 1], dir),
-      make_pose(waypoints[i],     dir),
-      cancel_checker);
+      make_pose(waypoints[i],     dir));
     path.poses.insert(path.poses.end(), seg.begin(), seg.end());
   }
 
@@ -171,28 +194,13 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
 // ── Coverage waypoint generation ───────────────────────────────────────────────
 
 std::vector<geometry_msgs::msg::Point> CoveragePlanner::generateCoverageWaypoints(
-  const geometry_msgs::msg::Polygon & polygon)
+  const geometry_msgs::msg::Polygon & polygon,
+  const geometry_msgs::msg::Point32 & snake_entry)
 {
   std::vector<geometry_msgs::msg::Point> waypoints;
   if (polygon.points.size() < 3) { return waypoints; }
 
-  // ── Phase 1: Perimeter pass(es) ──────────────────────────────────────────
-  // Walk the polygon vertices in order to cleanly cut the boundary first.
-  for (int pass = 0; pass < perimeter_passes_; pass++) {
-    for (const auto & pt : polygon.points) {
-      geometry_msgs::msg::Point p;
-      p.x = pt.x; p.y = pt.y; p.z = 0.0;
-      waypoints.push_back(p);
-    }
-    // Close the loop back to the first vertex
-    geometry_msgs::msg::Point first;
-    first.x = polygon.points[0].x;
-    first.y = polygon.points[0].y;
-    first.z = 0.0;
-    waypoints.push_back(first);
-  }
-
-  // ── Phase 2: Boustrophedon (snake) interior ──────────────────────────────
+  // ── Boustrophedon sweep with robot_radius inset and smart start direction ──
   float min_y =  std::numeric_limits<float>::max();
   float max_y = -std::numeric_limits<float>::max();
   for (const auto & pt : polygon.points) {
@@ -200,15 +208,49 @@ std::vector<geometry_msgs::msg::Point> CoveragePlanner::generateCoverageWaypoint
     max_y = std::max(max_y, pt.y);
   }
 
-  bool left_to_right = true;
-  for (double y = min_y; y <= max_y + 1e-6; y += mowing_spacing_) {
-    auto xs = scanLineIntersections(polygon, y);
-    if (xs.empty()) {
-      continue;
-    }
+  // Phase 1.5: inset first/last strip by robot_radius so the robot body
+  // stays fully inside the polygon boundary on every strip.
+  double eff_min_y = static_cast<double>(min_y) + robot_radius_;
+  double eff_max_y = static_cast<double>(max_y) - robot_radius_;
+  if (eff_min_y >= eff_max_y) { return waypoints; }
 
-    // Sort intersections; take all as strip entry/exit x-values
+  // Phase 2: pick the nearest polygon boundary to the robot as the start of
+  // the sweep.  Starting close to the robot minimises the initial approach.
+  double mid_y    = (eff_min_y + eff_max_y) * 0.5;
+  bool   sweep_up = (static_cast<double>(snake_entry.y) <= mid_y);
+  double y_start  = sweep_up ? eff_min_y : eff_max_y;
+  double y_end    = sweep_up ? eff_max_y : eff_min_y;
+  double y_step   = sweep_up ? mowing_spacing_ : -mowing_spacing_;
+
+  // Determine which end of the first strip is closer to the robot.
+  bool left_to_right = true;
+  {
+    auto xs0 = scanLineIntersections(polygon, y_start);
+    if (xs0.size() >= 2) {
+      std::sort(xs0.begin(), xs0.end());
+      double x_left  = xs0.front() + robot_radius_;
+      double x_right = xs0.back()  - robot_radius_;
+      if (x_left < x_right) {
+        double d_left  = std::hypot(snake_entry.x - x_left,  snake_entry.y - y_start);
+        double d_right = std::hypot(snake_entry.x - x_right, snake_entry.y - y_start);
+        left_to_right  = (d_left <= d_right);
+      }
+    }
+  }
+
+  for (double y = y_start;
+       sweep_up ? (y <= y_end + 1e-6) : (y >= y_end - 1e-6);
+       y += y_step) {
+    auto xs = scanLineIntersections(polygon, y);
+    if (xs.size() < 2) { continue; }
+
     std::sort(xs.begin(), xs.end());
+
+    // Phase 1.5: inset strip endpoints so robot body stays inside polygon.
+    xs.front() += robot_radius_;
+    xs.back()  -= robot_radius_;
+    if (xs.front() >= xs.back()) { continue; }
+
     if (!left_to_right) { std::reverse(xs.begin(), xs.end()); }
 
     for (double x : xs) {
@@ -242,120 +284,6 @@ std::vector<double> CoveragePlanner::scanLineIntersections(
     }
   }
   return xs;
-}
-
-// ── Obstacle-aware segment routing ─────────────────────────────────────────────
-
-std::vector<geometry_msgs::msg::PoseStamped> CoveragePlanner::connectWithAstar(
-  const geometry_msgs::msg::PoseStamped & from,
-  const geometry_msgs::msg::PoseStamped & to,
-  const std::function<bool()> & cancel_checker)
-{
-  if (cancel_checker()) { return {}; }
-
-  // Lock the costmap once for the entire call (both line-check and A* search)
-  costmap_ = costmap_ros_->getCostmap();
-  std::lock_guard<nav2_costmap_2d::Costmap2D::mutex_t> lock(*(costmap_->getMutex()));
-
-  if (isLineClearLocked(
-    from.pose.position.x, from.pose.position.y,
-    to.pose.position.x,   to.pose.position.y))
-  {
-    // Happy path: straight line, no obstacles
-    return interpolateLine(from, to);
-  }
-
-  // Blocked — find a detour with A* on the global costmap
-  unsigned int sx_u, sy_u, gx_u, gy_u;
-  const bool start_ok =
-    costmap_->worldToMap(from.pose.position.x, from.pose.position.y, sx_u, sy_u);
-  const bool goal_ok  =
-    costmap_->worldToMap(to.pose.position.x,   to.pose.position.y,   gx_u, gy_u);
-
-  if (!start_ok || !goal_ok) {
-    RCLCPP_WARN(
-      rclcpp::get_logger("CoveragePlanner"),
-      "Waypoint outside costmap bounds — falling back to straight line.");
-    return interpolateLine(from, to);
-  }
-
-  auto grid_path = aStarGrid(
-    costmap_,
-    static_cast<int>(sx_u), static_cast<int>(sy_u),
-    static_cast<int>(gx_u), static_cast<int>(gy_u));
-
-  if (grid_path.empty()) {
-    RCLCPP_WARN(
-      rclcpp::get_logger("CoveragePlanner"),
-      "A* could not find a path around the obstacle — using straight line.");
-    return interpolateLine(from, to);
-  }
-
-  // Convert grid cells back to world-frame stamped poses
-  std::vector<geometry_msgs::msg::PoseStamped> poses;
-  poses.reserve(grid_path.size());
-
-  for (size_t i = 0; i < grid_path.size(); i++) {
-    double wx, wy;
-    costmap_->mapToWorld(
-      static_cast<unsigned int>(grid_path[i].first),
-      static_cast<unsigned int>(grid_path[i].second),
-      wx, wy);
-
-    // Orientation: point toward the next cell; use goal yaw on the last cell
-    double yaw = 0.0;
-    if (i + 1 < grid_path.size()) {
-      double nx, ny;
-      costmap_->mapToWorld(
-        static_cast<unsigned int>(grid_path[i + 1].first),
-        static_cast<unsigned int>(grid_path[i + 1].second),
-        nx, ny);
-      yaw = std::atan2(ny - wy, nx - wx);
-    } else {
-      yaw = tf2::getYaw(to.pose.orientation);
-    }
-
-    geometry_msgs::msg::PoseStamped ps;
-    ps.header           = from.header;
-    ps.pose.position.x  = wx;
-    ps.pose.position.y  = wy;
-    ps.pose.position.z  = 0.0;
-    ps.pose.orientation = yawToQuaternion(yaw);
-    poses.push_back(ps);
-  }
-  return poses;
-}
-
-// ── Line-of-sight check (Bresenham) ───────────────────────────────────────────
-
-bool CoveragePlanner::isLineClearLocked(double x1, double y1, double x2, double y2)
-{
-  // Caller must already hold costmap_->getMutex()
-  unsigned int mx1, my1, mx2, my2;
-  if (!costmap_->worldToMap(x1, y1, mx1, my1)) { return false; }
-  if (!costmap_->worldToMap(x2, y2, mx2, my2)) { return false; }
-
-  int sx = static_cast<int>(mx1), sy = static_cast<int>(my1);
-  int ex = static_cast<int>(mx2), ey = static_cast<int>(my2);
-  int dx = std::abs(ex - sx), dy = std::abs(ey - sy);
-  int step_x = (sx < ex) ? 1 : -1;
-  int step_y = (sy < ey) ? 1 : -1;
-  int err = dx - dy;
-  int x = sx, y = sy;
-
-  while (true) {
-    if (costmap_->getCost(
-          static_cast<unsigned int>(x),
-          static_cast<unsigned int>(y)) >= nav2_costmap_2d::LETHAL_OBSTACLE)
-    {
-      return false;
-    }
-    if (x == ex && y == ey) { break; }
-    int e2 = 2 * err;
-    if (e2 > -dy) { err -= dy; x += step_x; }
-    if (e2 <  dx) { err += dx; y += step_y; }
-  }
-  return true;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────

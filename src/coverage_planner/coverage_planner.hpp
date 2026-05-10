@@ -21,10 +21,9 @@
 namespace open_mower_next::coverage_planner
 {
 
-// Nav2 GlobalPlanner plugin that generates a full boustrophedon (snake) coverage
-// path over the nearest operation area polygon, then connects each pair of
-// consecutive strip endpoints with either a straight line (when obstacle-free) or
-// an A* detour around blocked cells in the global costmap.
+// Nav2 GlobalPlanner plugin that generates a boustrophedon (snake) coverage path
+// over the nearest operation area polygon.  Each strip runs edge-to-edge across
+// the polygon with straight-line interpolation between endpoints.
 class CoveragePlanner : public nav2_core::GlobalPlanner
 {
 public:
@@ -54,27 +53,18 @@ public:
 private:
   // ── Coverage path generation ──────────────────────────────────────────────
 
-  // Returns ordered waypoints: perimeter passes first, then boustrophedon interior.
+  // Returns boustrophedon (snake) waypoints covering the entire polygon edge-to-edge.
+  // snake_entry: the robot's nearest point on the polygon boundary, used to pick
+  // which end of the first strip to start from (minimises the initial approach).
   std::vector<geometry_msgs::msg::Point> generateCoverageWaypoints(
-    const geometry_msgs::msg::Polygon & polygon);
+    const geometry_msgs::msg::Polygon & polygon,
+    const geometry_msgs::msg::Point32 & snake_entry);
 
   // Computes x-coordinates where a horizontal scan line at y intersects polygon edges.
   std::vector<double> scanLineIntersections(
     const geometry_msgs::msg::Polygon & polygon, double y);
 
-  // ── Obstacle-aware segment routing ───────────────────────────────────────
-
-  // Returns a path segment from `from` to `to`.
-  // Uses straight-line interpolation when the line is clear; falls back to A*
-  // when an obstacle is detected. The costmap mutex must NOT be held by the caller.
-  std::vector<geometry_msgs::msg::PoseStamped> connectWithAstar(
-    const geometry_msgs::msg::PoseStamped & from,
-    const geometry_msgs::msg::PoseStamped & to,
-    const std::function<bool()> & cancel_checker);
-
-  // Walks the straight line using Bresenham's algorithm; returns false if any cell
-  // has cost >= LETHAL_OBSTACLE.  Caller must hold the costmap mutex.
-  bool isLineClearLocked(double x1, double y1, double x2, double y2);
+  // ── Path interpolation ────────────────────────────────────────────────────
 
   // Densely interpolates world-frame poses along a straight line at `step` metres.
   std::vector<geometry_msgs::msg::PoseStamped> interpolateLine(
@@ -87,14 +77,13 @@ private:
 
   // ── State ─────────────────────────────────────────────────────────────────
   double mowing_spacing_{0.4};   // Strip spacing in metres (= cutting width)
-  int perimeter_passes_{1};       // How many perimeter laps before interior fill
+  double robot_radius_{0.5};     // Inset from polygon edges so robot body stays inside
 
   std::string name_;
   std::string global_frame_;
 
   rclcpp_lifecycle::LifecycleNode::WeakPtr              node_;
   std::shared_ptr<nav2_costmap_2d::Costmap2DROS>        costmap_ros_;
-  nav2_costmap_2d::Costmap2D *                          costmap_{nullptr};
 
   // Receives the OpenMower area map to obtain operation-area polygons
   rclcpp::Subscription<open_mower_next::msg::Map>::SharedPtr map_sub_;

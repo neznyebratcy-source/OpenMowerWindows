@@ -53,9 +53,9 @@ RUN apt-get update \
     && source /opt/ros/${ROS_DISTRO}/setup.bash \
     && cd $WORKSPACE \
     && DEBIAN_FRONTEND=noninteractive rosdep install --from-paths . \
-    --ignore-src --skip-keys="$(rospack list-names | paste -s -d ' ' -)" \
-    -r -y \
+    --ignore-src -r -y \
     --dependency-types=exec \
+    || true \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
