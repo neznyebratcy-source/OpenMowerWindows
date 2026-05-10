@@ -28,6 +28,8 @@ services:
       - ./maps:/opt/ws/maps
       - ./scripts/entrypoint.sh:/opt/ws/entrypoint.sh
       - ./scripts/coverage_goal_bridge.py:/opt/ws/coverage_goal_bridge.py
+      - ./scripts/synthetic_scan.py:/opt/ws/synthetic_scan.py
+      - ./scripts/obstacle_map_publisher.py:/opt/ws/obstacle_map_publisher.py
       - ./scripts/ackermann_hils_bridge.py:/opt/ws/ackermann_hils_bridge.py
       - ./launch/sim.launch.py:/opt/ws/install/open_mower_next/share/open_mower_next/launch/sim.launch.py
       - ./launch/nav2.launch.py:/opt/ws/install/open_mower_next/share/open_mower_next/launch/nav2.launch.py
@@ -50,7 +52,6 @@ services:
       - OM_MAP_PATH=/opt/ws/maps/map.geojson
       # Software rendering for Gazebo display/camera sensors in Docker/WSL2.
       - LIBGL_ALWAYS_SOFTWARE=1
-      - MESA_GL_VERSION_OVERRIDE=3.3
     command: bash /opt/ws/entrypoint.sh
     volumes_from:
       - xserver

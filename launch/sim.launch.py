@@ -63,12 +63,13 @@ def generate_launch_description():
         output='screen'
     )
 
-    scan_bridge = Node(
-        package='ros_gz_bridge',
-        executable='parameter_bridge',
-        arguments=[
-            '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
-        ],
+    synthetic_scan = ExecuteProcess(
+        cmd=['python3', '/opt/ws/synthetic_scan.py', '--ros-args', '-p', 'use_sim_time:=true'],
+        output='screen'
+    )
+
+    obstacle_map = ExecuteProcess(
+        cmd=['python3', '/opt/ws/obstacle_map_publisher.py', '--ros-args', '-p', 'use_sim_time:=true'],
         output='screen'
     )
 
@@ -171,7 +172,8 @@ def generate_launch_description():
         sim_node,
         localization,
         nav2,
-        scan_bridge,
+        synthetic_scan,
+        obstacle_map,
         coverage_goal_bridge,
         rviz,
     ])
