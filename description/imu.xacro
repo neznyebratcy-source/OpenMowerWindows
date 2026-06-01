@@ -17,6 +17,53 @@
             <update_rate>50</update_rate>
             <visualize>true</visualize>
             <topic>imu/data_raw</topic>
+
+            <!-- Добавленный блок шума на основе BMI160 Datasheet -->
+            <imu>
+                <angular_velocity>
+                    <x>
+                        <noise type="gaussian">
+                            <mean>0.0</mean>
+                            <!-- BMI160 Gyro: 0.07 deg/s rms @ ODR 200Hz -> 0.0012 rad/s -->
+                            <stddev>0.0012</stddev> 
+                        </noise>
+                    </x>
+                    <y>
+                        <noise type="gaussian">
+                            <mean>0.0</mean>
+                            <stddev>0.0012</stddev>
+                        </noise>
+                    </y>
+                    <z>
+                        <noise type="gaussian">
+                            <mean>0.0</mean>
+                            <stddev>0.0012</stddev>
+                        </noise>
+                    </z>
+                </angular_velocity>
+                <linear_acceleration>
+                    <x>
+                        <noise type="gaussian">
+                            <mean>0.0</mean>
+                            <!-- BMI160 Accel: 1.8 mg rms @ ODR 200Hz -> 0.018 m/s^2 -->
+                            <stddev>0.018</stddev> 
+                        </noise>
+                    </x>
+                    <y>
+                        <noise type="gaussian">
+                            <mean>0.0</mean>
+                            <stddev>0.018</stddev>
+                        </noise>
+                    </y>
+                    <z>
+                        <noise type="gaussian">
+                            <mean>0.0</mean>
+                            <stddev>0.018</stddev>
+                        </noise>
+                    </z>
+                </linear_acceleration>
+            </imu>
+
         </sensor>
 
         <material>Gazebo/Red</material>

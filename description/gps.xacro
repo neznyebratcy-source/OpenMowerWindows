@@ -15,6 +15,24 @@
             <always_on>1</always_on>
             <update_rate>5</update_rate>
             <topic>gps/fix</topic>
+
+                        <!-- Безопасный блок шума для Gazebo NavSat -->
+            <navsat>
+                <position_sensing>
+                    <horizontal>
+                        <noise type="gaussian">
+                            <mean>0.0</mean>
+                            <stddev>0.000019</stddev>
+                        </noise>
+                    </horizontal>
+                    <vertical>
+                        <noise type="gaussian">
+                            <mean>0.0</mean>
+                            <stddev>4.0</stddev>
+                        </noise>
+                    </vertical>
+                </position_sensing>
+            </navsat>
         </sensor>
 
         <material>Gazebo/Black</material>
