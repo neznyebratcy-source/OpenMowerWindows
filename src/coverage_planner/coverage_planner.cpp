@@ -1,4 +1,6 @@
 #include "coverage_planner/coverage_planner.hpp"
+#include "coverage_planner/astar.hpp"
+#include <nav2_costmap_2d/cost_values.hpp>
 
 #include <nav2_util/node_utils.hpp>
 #include <tf2/LinearMath/Quaternion.h>
@@ -166,7 +168,7 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
     double dir = std::atan2(
       waypoints[0].y - start.pose.position.y,
       waypoints[0].x - start.pose.position.x);
-    auto seg = interpolateLine(start, make_pose(waypoints[0], dir));
+    auto seg = routeSegment(start, make_pose(waypoints[0], dir));
     path.poses.insert(path.poses.end(), seg.begin(), seg.end());
   }
 
@@ -179,7 +181,7 @@ nav_msgs::msg::Path CoveragePlanner::createPlan(
     double dir = std::atan2(
       waypoints[i].y - waypoints[i - 1].y,
       waypoints[i].x - waypoints[i - 1].x);
-    auto seg = interpolateLine(
+    auto seg = routeSegment(
       make_pose(waypoints[i - 1], dir),
       make_pose(waypoints[i],     dir));
     path.poses.insert(path.poses.end(), seg.begin(), seg.end());
@@ -320,6 +322,98 @@ geometry_msgs::msg::Quaternion CoveragePlanner::yawToQuaternion(double yaw)
   tf2::Quaternion q;
   q.setRPY(0.0, 0.0, yaw);
   return tf2::toMsg(q);
+}
+
+// ── Obstacle-aware segment routing ────────────────────────────────────────────
+
+bool CoveragePlanner::lineClear(
+  nav2_costmap_2d::Costmap2D * costmap,
+  const geometry_msgs::msg::PoseStamped & from,
+  const geometry_msgs::msg::PoseStamped & to)
+{
+  const double dx   = to.pose.position.x - from.pose.position.x;
+  const double dy   = to.pose.position.y - from.pose.position.y;
+  const double dist = std::hypot(dx, dy);
+  const int    steps = std::max(2, static_cast<int>(dist / costmap->getResolution()));
+
+  for (int i = 0; i <= steps; i++) {
+    const double t  = static_cast<double>(i) / static_cast<double>(steps);
+    unsigned int mx, my;
+    if (!costmap->worldToMap(
+          from.pose.position.x + t * dx,
+          from.pose.position.y + t * dy, mx, my)) { continue; }
+    if (costmap->getCost(mx, my) >= nav2_costmap_2d::LETHAL_OBSTACLE) { return false; }
+  }
+  return true;
+}
+
+std::vector<geometry_msgs::msg::PoseStamped> CoveragePlanner::routeSegment(
+  const geometry_msgs::msg::PoseStamped & from,
+  const geometry_msgs::msg::PoseStamped & to)
+{
+  auto * costmap = costmap_ros_->getCostmap();
+  std::unique_lock<nav2_costmap_2d::Costmap2D::mutex_t> lock(*costmap->getMutex());
+
+  if (lineClear(costmap, from, to)) {
+    return interpolateLine(from, to);
+  }
+
+  // Straight line is blocked — try A*
+  unsigned int sx, sy, gx, gy;
+  if (!costmap->worldToMap(from.pose.position.x, from.pose.position.y, sx, sy) ||
+      !costmap->worldToMap(to.pose.position.x,   to.pose.position.y,   gx, gy)) {
+    return interpolateLine(from, to);
+  }
+
+  const auto cells = aStarGrid(
+    costmap,
+    static_cast<int>(sx), static_cast<int>(sy),
+    static_cast<int>(gx), static_cast<int>(gy));
+
+  if (cells.empty()) {
+    RCLCPP_WARN(rclcpp::get_logger("CoveragePlanner"),
+      "A* found no path between (%.2f,%.2f) and (%.2f,%.2f) — using straight line.",
+      from.pose.position.x, from.pose.position.y,
+      to.pose.position.x,   to.pose.position.y);
+    return interpolateLine(from, to);
+  }
+
+  RCLCPP_DEBUG(rclcpp::get_logger("CoveragePlanner"),
+    "A* routed %zu cells around obstacle.", cells.size());
+
+  std::vector<geometry_msgs::msg::PoseStamped> poses;
+  poses.reserve(cells.size());
+
+  const double fallback_yaw = std::atan2(
+    to.pose.position.y - from.pose.position.y,
+    to.pose.position.x - from.pose.position.x);
+
+  for (size_t i = 0; i < cells.size(); i++) {
+    double wx, wy;
+    costmap->mapToWorld(
+      static_cast<unsigned int>(cells[i].first),
+      static_cast<unsigned int>(cells[i].second),
+      wx, wy);
+
+    double yaw = fallback_yaw;
+    if (i + 1 < cells.size()) {
+      double nwx, nwy;
+      costmap->mapToWorld(
+        static_cast<unsigned int>(cells[i + 1].first),
+        static_cast<unsigned int>(cells[i + 1].second),
+        nwx, nwy);
+      yaw = std::atan2(nwy - wy, nwx - wx);
+    }
+
+    geometry_msgs::msg::PoseStamped ps;
+    ps.header           = from.header;
+    ps.pose.position.x  = wx;
+    ps.pose.position.y  = wy;
+    ps.pose.position.z  = 0.0;
+    ps.pose.orientation = yawToQuaternion(yaw);
+    poses.push_back(ps);
+  }
+  return poses;
 }
 
 }  // namespace open_mower_next::coverage_planner

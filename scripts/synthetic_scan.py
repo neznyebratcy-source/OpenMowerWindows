@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 import math
+import struct
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import LaserScan, PointCloud2, PointField
 import tf2_ros
 
 # Tree trunk obstacles from worlds/open_field.sdf: (x, y, radius_m)
@@ -36,8 +37,9 @@ class SyntheticScan(Node):
     def __init__(self):
         super().__init__('synthetic_scan')
         self.pub = self.create_publisher(LaserScan, '/scan', 10)
+        self.cloud_pub = self.create_publisher(PointCloud2,'/scan_cloud', 10)
         self.tf  = tf2_ros.Buffer()
-        tf2_ros.TransformListener(self.tf, self)
+        self.tf_listener = tf2_ros.TransformListener(self.tf, self)
         self.create_timer(0.1, self._publish)
 
     def _publish(self):
@@ -75,7 +77,7 @@ class SyntheticScan(Node):
                     ranges[i] = hit
 
         msg = LaserScan()
-        msg.header.stamp    = rclpy.time.Time().to_msg()
+        msg.header.stamp    = t.header.stamp
         msg.header.frame_id = 'radar_link'
         msg.angle_min       = -math.pi
         msg.angle_max       =  math.pi
@@ -85,6 +87,33 @@ class SyntheticScan(Node):
         msg.range_max       = RANGE_MAX
         msg.ranges          = [float(v) for v in ranges]
         self.pub.publish(msg)
+
+        # PointCloud2 in map frame — no TF lookup needed by the costmap.
+        # Only finite-range hits (actual obstacle detections) are included.
+        pts = []
+        for i, r in enumerate(ranges):
+            if r < RANGE_MAX:
+                a = yaw + (-math.pi + i * angle_step)
+                pts.append((rx + r * math.cos(a), ry + r * math.sin(a), 0.0))
+
+        if pts:
+            cloud = PointCloud2()
+            cloud.header.stamp    = t.header.stamp
+            cloud.header.frame_id = 'map'
+            cloud.height          = 1
+            cloud.width           = len(pts)
+            cloud.fields          = [
+                PointField(name='x', offset=0,  datatype=PointField.FLOAT32, count=1),
+                PointField(name='y', offset=4,  datatype=PointField.FLOAT32, count=1),
+                PointField(name='z', offset=8,  datatype=PointField.FLOAT32, count=1),
+            ]
+            cloud.is_bigendian = False
+            cloud.point_step   = 12
+            cloud.row_step     = 12 * len(pts)
+            cloud.data         = bytes(struct.pack(
+                f'{len(pts) * 3}f', *[v for p in pts for v in p]))
+            cloud.is_dense = True
+            self.cloud_pub.publish(cloud)
 
 
 def main():

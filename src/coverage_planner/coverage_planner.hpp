@@ -72,6 +72,18 @@ private:
     const geometry_msgs::msg::PoseStamped & to,
     double step = 0.05);
 
+  // Routes from→to avoiding lethal costmap cells.
+  // Uses A* when the straight line is blocked; falls back to interpolateLine otherwise.
+  std::vector<geometry_msgs::msg::PoseStamped> routeSegment(
+    const geometry_msgs::msg::PoseStamped & from,
+    const geometry_msgs::msg::PoseStamped & to);
+
+  // Returns true if the straight line from→to contains no lethal costmap cells.
+  bool lineClear(
+    nav2_costmap_2d::Costmap2D * costmap,
+    const geometry_msgs::msg::PoseStamped & from,
+    const geometry_msgs::msg::PoseStamped & to);
+
   // Converts a yaw angle (radians) to a geometry_msgs Quaternion.
   static geometry_msgs::msg::Quaternion yawToQuaternion(double yaw);
 

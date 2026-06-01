@@ -1,11 +1,17 @@
 <root BTCPP_format="4" main_tree_to_execute="MainTree">
   <BehaviorTree ID="MainTree">
-    <Sequence name="root_sequence">
-      <ComputePathToPose goal="{goal}" path="{path}"
-                         planner_id="CoveragePlanner"
-                         error_code_id="{compute_path_error_code}"/>
+    <!-- PipelineSequence reticks all previous children each time a later child
+         is RUNNING, so ComputePathToPose fires periodically via RateController
+         while FollowPath is executing.  FollowPath picks up the updated path
+         from the blackboard and sends it to the controller server. -->
+    <PipelineSequence name="NavigateWithReplanning">
+      <RateController hz="0.5">
+        <ComputePathToPose goal="{goal}" path="{path}"
+                           planner_id="CoveragePlanner"
+                           error_code_id="{compute_path_error_code}"/>
+      </RateController>
       <FollowPath path="{path}" controller_id="FollowPath"
                   error_code_id="{follow_path_error_code}"/>
-    </Sequence>
+    </PipelineSequence>
   </BehaviorTree>
 </root>
