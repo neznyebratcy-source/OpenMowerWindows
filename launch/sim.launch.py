@@ -57,16 +57,21 @@ def generate_launch_description():
             '/clock@rosgraph_msgs/msg/Clock[gz.msgs.Clock',
             '/gps/fix@sensor_msgs/msg/NavSatFix[gz.msgs.NavSat',
             '/imu/data_raw@sensor_msgs/msg/Imu[gz.msgs.IMU',
+            '/scan@sensor_msgs/msg/LaserScan[gz.msgs.LaserScan',
             '/model/openmower/pose@tf2_msgs/msg/TFMessage[gz.msgs.Pose_V',
             '/model/docking_station/pose@geometry_msgs/msg/Pose[gz.msgs.Pose',
         ],
         output='screen'
     )
-
-    synthetic_scan = ExecuteProcess(
-        cmd=['python3', '/opt/ws/synthetic_scan.py', '--ros-args', '-p', 'use_sim_time:=true'],
+    
+    gps_covariance_fix_node = ExecuteProcess(
+        cmd=['python3', '/opt/ws/gps_covariance_fix.py', '--ros-args', '-p', 'use_sim_time:=true'],
         output='screen'
     )
+    #synthetic_scan = ExecuteProcess(
+    #    cmd=['python3', '/opt/ws/synthetic_scan.py', '--ros-args', '-p', 'use_sim_time:=true'],
+    #    output='screen'
+    #)
 
     obstacle_map = ExecuteProcess(
         cmd=['python3', '/opt/ws/obstacle_map_publisher.py', '--ros-args', '-p', 'use_sim_time:=true'],
@@ -172,8 +177,9 @@ def generate_launch_description():
         sim_node,
         localization,
         nav2,
-        synthetic_scan,
+        # synthetic_scan,
         obstacle_map,
         coverage_goal_bridge,
         rviz,
+        gps_covariance_fix_node,
     ])

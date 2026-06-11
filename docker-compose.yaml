@@ -30,9 +30,11 @@ services:
       - ./scripts/coverage_goal_bridge.py:/opt/ws/coverage_goal_bridge.py
       - ./scripts/synthetic_scan.py:/opt/ws/synthetic_scan.py
       - ./scripts/obstacle_map_publisher.py:/opt/ws/obstacle_map_publisher.py
+      - ./scripts/gps_covariance_fix.py:/opt/ws/gps_covariance_fix.py
       - ./scripts/ackermann_hils_bridge.py:/opt/ws/ackermann_hils_bridge.py
       - ./launch/sim.launch.py:/opt/ws/install/open_mower_next/share/open_mower_next/launch/sim.launch.py
       - ./launch/nav2.launch.py:/opt/ws/install/open_mower_next/share/open_mower_next/launch/nav2.launch.py
+      - ./launch/localization.launch.py:/opt/ws/install/open_mower_next/share/open_mower_next/launch/localization.launch.py
       - ./worlds:/opt/ws/install/open_mower_next/share/open_mower_next/worlds
       # Mount description and config so changes to radar.xacro, robot.urdf.xacro,
       # yardforce500.yaml, nav2_params.yaml, and openmower.rviz are picked up
