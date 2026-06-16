@@ -49,7 +49,7 @@ class SyntheticScan(Node):
             return
 
         rx  = t.transform.translation.x
-        ry  = t.transform.translation.y
+        ry  = t.transform.translation.yCC
         q   = t.transform.rotation
         yaw = math.atan2(2.0*(q.w*q.z + q.x*q.y),
                          1.0 - 2.0*(q.y*q.y + q.z*q.z))

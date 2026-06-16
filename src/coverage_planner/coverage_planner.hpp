@@ -78,7 +78,7 @@ private:
     const geometry_msgs::msg::PoseStamped & from,
     const geometry_msgs::msg::PoseStamped & to);
 
-  // Returns true if the straight line from→to contains no lethal costmap cells.
+  // Returns true if the straight line from→to contains no cells >= INSCRIBED_INFLATED_OBSTACLE.
   bool lineClear(
     nav2_costmap_2d::Costmap2D * costmap,
     const geometry_msgs::msg::PoseStamped & from,

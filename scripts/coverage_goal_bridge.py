@@ -25,6 +25,7 @@ from rclpy.node import Node
 from rclpy.action import ActionClient
 
 from geometry_msgs.msg import PoseStamped
+from std_msgs.msg import Bool
 from nav2_msgs.action import NavigateToPose
 
 
@@ -34,6 +35,8 @@ class CoverageGoalBridge(Node):
 
         self._action_client = ActionClient(self, NavigateToPose, 'navigate_to_pose')
         self._active_goal   = None
+
+        self._done_pub = self.create_publisher(Bool, '/mowing_done', 10)
 
         self.create_subscription(
             PoseStamped,
@@ -97,6 +100,7 @@ class CoverageGoalBridge(Node):
             self.get_logger().warn(
                 f'Navigation finished with error code {result.error_code}')
         self._active_goal = None
+        self._done_pub.publish(Bool(data=True))
 
 
 def main():

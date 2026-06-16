@@ -342,7 +342,7 @@ bool CoveragePlanner::lineClear(
     if (!costmap->worldToMap(
           from.pose.position.x + t * dx,
           from.pose.position.y + t * dy, mx, my)) { continue; }
-    if (costmap->getCost(mx, my) >= nav2_costmap_2d::LETHAL_OBSTACLE) { return false; }
+    if (costmap->getCost(mx, my) >= nav2_costmap_2d::INSCRIBED_INFLATED_OBSTACLE) { return false; }
   }
   return true;
 }
